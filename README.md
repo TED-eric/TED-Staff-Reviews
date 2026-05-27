@@ -35,32 +35,3 @@ This file uses an in-browser compilation stack to stay ultra-portable:
 * **Compiler:** Babel Standalone (Compiles JSX directly inside the browser)
 * **Styling:** Custom CSS Custom Properties leveraging variable design tokens (`--color-background-primary`, etc.) matching TED brand guidelines.
 * **Typography:** Google Fonts (`DM Sans` and `DM Mono`).
-
----
-
-## 🔄 Moving to Production: monday.com Integration
-
-To transform this local file into a collaborative team utility connected to your **monday.com** workspace, follow these steps:
-
-### Step 1: Host the Frontend (Free Options)
-Because monday.com cannot host and execute raw HTML application code natively, drag and drop this file folder onto a free static web hosting provider:
-* [Netlify](https://www.netlify.com/) (Highly recommended: zero setup drag-and-drop)
-* [Vercel](https://vercel.com/)
-* [GitHub Pages](https://pages.github.com/)
-
-### Step 2: Swap Local Storage for API Pipelines
-Currently, the application reads/writes via the `storeGet` and `storeSet` wrapper functions inside the code. To sync with monday.com:
-
-1. Create your target boards inside **monday.com** (e.g., a "Staff Board", a "Reviews Board", and a "Counseling Log Board").
-2. Set up an automation webhook in **Make.com** or **n8n.io** to act as a receiver.
-3. Modify the JavaScript script block at the top of the HTML file to shift data via a standard `fetch()` payload to your webhook or directly via monday’s GraphQL API:
-
-```javascript
-// Replace LocalStorage logic with live API integration
-async function storeSet(key, val) {
-  await fetch("YOUR_AUTOMATION_WEBHOOK_URL", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, data: val })
-  });
-}
