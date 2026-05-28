@@ -1,0 +1,2509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TED Staff Reviews — Preview</title>
+
+  <!-- React + Babel (for JSX in browser) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+  <!-- TED Brand Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --color-background-primary: #ffffff;
+      --color-background-secondary: #F5F0EB;
+      --color-background-tertiary: #FAF8F5;
+      --color-text-primary: #1B2838;
+      --color-text-secondary: #6B6560;
+      --color-text-tertiary: #9B958F;
+      --color-border-tertiary: rgba(27,40,56,0.10);
+      --color-border-secondary: rgba(27,40,56,0.18);
+      --color-border-primary: rgba(27,40,56,0.30);
+      --color-border-info: rgba(42,122,110,0.40);
+      --color-border-danger: rgba(163,45,45,0.40);
+      --color-border-success: rgba(59,109,17,0.40);
+      --color-border-warning: rgba(212,121,58,0.40);
+      --color-background-info: #E1F5EE;
+      --color-background-danger: #FCEBEB;
+      --color-background-success: #EAF3DE;
+      --color-background-warning: #FAF0E6;
+      --color-text-info: #2A7A6E;
+      --color-text-danger: #A32D2D;
+      --color-text-success: #3B6D11;
+      --color-text-warning: #D4793A;
+      --border-radius-md: 8px;
+      --border-radius-lg: 12px;
+      --border-radius-xl: 16px;
+      --font-sans: 'DM Sans', sans-serif;
+      --font-serif: Georgia, serif;
+      --font-mono: 'DM Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #FAF8F5;
+      color: #1B2838;
+      -webkit-font-smoothing: antialiased;
+    }
+    input, select, textarea, button { font-family: 'DM Sans', sans-serif; }
+    input[type=date]::-webkit-calendar-picker-indicator { opacity: 0.5; }
+
+    /* Preview banner */
+    #preview-banner {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: #1B2838;
+      color: #FAF8F5;
+      text-align: center;
+      padding: 8px 16px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      z-index: 9999;
+    }
+    #root { }
+  </style>
+</head>
+<body>
+
+  <div id="root">
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:'DM Sans',sans-serif;color:#6B6560;font-size:14px;">
+      Loading…
+    </div>
+  </div>
+
+  <script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+
+const KEYS = { emps: "ted-rev-emps", revs: "ted-rev-revs", sched: "ted-rev-sched", incs: "ted-rev-incs", form: "ted-rev-form" };
+
+// ── Default form definition (matches TED Employee Performance Review PDF) ─────
+// Stored in shared storage so it's editable by the owner and used for all reviews.
+
+const DEFAULT_FORM_DEF = {
+  sections: [
+    {
+      id: "efficiency", title: "Efficiency & Output",
+      description: "Reviewer completes this section", color: "#2A7A6E", bg: "#E1F5EE",
+      questions: [
+        { id: "e1", num: 1, type: "rating", selfAssess: true,  text: "How consistently does this employee meet project deadlines and timelines?", scaleMin: "Rarely meets deadlines", scaleMax: "Always delivers on time" },
+        { id: "e2", num: 2, type: "rating", selfAssess: true,  text: "How effectively does this employee manage their time and prioritise tasks under pressure?", scaleMin: "Needs significant improvement", scaleMax: "Exceptional" },
+        { id: "e3", num: 3, type: "rating", selfAssess: false, text: "Does the employee complete work within scope without requiring excessive revisions or supervision?", scaleMin: "Needs significant improvement", scaleMax: "Exceptional" },
+        { id: "e4", num: 4, type: "text",   selfAssess: false, text: "Notes on efficiency — specific examples of strong or weak performance:", placeholder: "Optional comments and examples…" },
+      ],
+    },
+    {
+      id: "quality", title: "Quality of Work",
+      description: "Reviewer completes this section", color: "#1B2838", bg: "#E8EDF2",
+      questions: [
+        { id: "q5",  num: 5, type: "rating", selfAssess: true,  text: "How would you rate the overall quality of this employee's fabrication output?", scaleMin: "Needs significant improvement", scaleMax: "Exceptional" },
+        { id: "q6",  num: 6, type: "rating", selfAssess: false, text: "Does the employee demonstrate a strong understanding of TED fabrication principals, design principles, and quality technical execution skills?", scaleMin: "Needs significant improvement", scaleMax: "Exceptional" },
+        { id: "q7",  num: 7, type: "rating", selfAssess: true,  text: "How well does the employee incorporate feedback and iterate toward the best possible outcome?", scaleMin: "Needs significant improvement", scaleMax: "Exceptional" },
+        { id: "q8",  num: 8, type: "rating", selfAssess: true,  text: "Does this employee show the ability to work autonomously when required?", scaleMin: "Relies heavily on constant feedback", scaleMax: "Capable of working independently" },
+        { id: "q9",  num: 9, type: "text",   selfAssess: false, text: "Notes on quality — specific examples or standout projects:", placeholder: "Optional comments and examples…" },
+      ],
+    },
+    {
+      id: "dependability", title: "Dependability & Professionalism",
+      description: "Reviewer completes this section", color: "#5C3D2E", bg: "#F2EBE6",
+      questions: [
+        { id: "d10", num: 10, type: "rating", selfAssess: true,  text: "How reliably does the employee communicate proactively — flagging issues, potential delays, or changes early?", scaleMin: "Needs significant improvement", scaleMax: "Exceptional" },
+        { id: "d11", num: 11, type: "rating", selfAssess: true,  text: "Does the employee take ownership of their work and accountability for mistakes?", scaleMin: "Needs significant improvement", scaleMax: "Exceptional" },
+        { id: "d12", num: 12, type: "rating", selfAssess: false, text: "How well does this employee adapt when priorities shift, new constraints emerge, or scope changes mid-project?", scaleMin: "Needs significant improvement", scaleMax: "Exceptional" },
+        { id: "d13", num: 13, type: "text",   selfAssess: false, text: "Notes on dependability:", placeholder: "Optional comments…" },
+      ],
+    },
+    {
+      id: "teamwork", title: "Teamwork & Collaboration",
+      description: "Reviewer completes this section", color: "#D4793A", bg: "#FAF0E6",
+      questions: [
+        { id: "t14", num: 14, type: "rating", selfAssess: true,  text: "How effectively does this employee communicate with colleagues across the studio?", scaleMin: "Needs significant improvement", scaleMax: "Exceptional" },
+        { id: "t15", num: 15, type: "rating", selfAssess: true,  text: "Does this employee contribute positively to team culture — sharing knowledge, lifting others, and staying constructive under stress?", scaleMin: "Needs significant improvement", scaleMax: "Exceptional" },
+        { id: "t16", num: 16, type: "rating", selfAssess: true,  text: "How well does the employee give and receive feedback from peers?", scaleMin: "Needs significant improvement", scaleMax: "Exceptional" },
+        { id: "t17", num: 17, type: "text",   selfAssess: false, text: "Are there any team dynamics or interpersonal patterns worth noting?", placeholder: "Optional comments…" },
+      ],
+    },
+  ],
+  overallOptions: ["Exceeds expectations", "Meets expectations", "Partially meets expectations", "Below expectations"],
+};
+
+const REVIEW_TYPES = ["Quarterly", "Mid-Year", "Annual", "90-Day", "Probationary", "Check-In"];
+
+// ── Counseling / incident log constants ──────────────────────────────────────
+const REPORTERS = ["Ted Ellison", "Carrie Pilch", "Jenna Kurtz-Medina", "Eric Millman", "Max Robertson-Ellison"];
+
+const INC_CATEGORIES = [
+  "Time & Attendance",
+  "Performance / Output",
+  "Communication",
+  "Asset / Resource Management",
+  "Workplace Conduct",
+  "Safety",
+  "Policy Violation",
+  "Interpersonal Conflict",
+  "Other",
+];
+
+const INC_SEVERITY = [
+  { key: "observation", label: "Observation",                    color: "#2A7A6E", bg: "#E1F5EE" },
+  { key: "verbal",      label: "Verbal Counseling",              color: "#D4793A", bg: "#FAF0E6" },
+  { key: "written",     label: "Written Warning",                color: "#5C3D2E", bg: "#F2EBE6" },
+  { key: "final",       label: "Final Warning",                  color: "#1B2838", bg: "#E8EDF2" },
+  { key: "pip",         label: "Performance Improvement Plan",   color: "#A32D2D", bg: "#FCEBEB" },
+];
+
+const uid = () => Math.random().toString(36).slice(2, 9);
+const todayStr = () => new Date().toISOString().split("T")[0];
+const daysUntil = (d) => Math.round((new Date(d + "T12:00:00") - new Date()) / 86400000);
+const fmtDate = (d) =>
+  d
+    ? new Date(d + "T12:00:00").toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "";
+const avgRatings = (r) => {
+  if (r.responses) { // new form-driven format
+    const vals = Object.values(r.responses).filter(v => typeof v === "number" && v > 0);
+    return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : null;
+  }
+  if (r.sections) { // previous section+prompts format
+    const vals = Object.values(r.sections).map((s) => s.rating).filter(Boolean);
+    return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : null;
+  }
+  const vals = Object.values(r.ratings || {}).filter(Boolean); // oldest format
+  return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : null;
+};
+
+// ── Shared storage ────────────────────────────────────────────────────────────
+// Data is saved locally in localStorage AND sent to the Make.com webhook
+// on every change so records are synced externally in real time.
+
+const WEBHOOK_URL = "https://hook.us2.make.com/4966hompdu5zgmdyy2qfuq65s449bn07";
+
+async function storeGet(key) {
+  try {
+    const val = localStorage.getItem('ted-preview-' + key);
+    return val ? JSON.parse(val) : null;
+  } catch { return null; }
+}
+
+async function storeSet(key, val) {
+  // Save locally
+  try {
+    localStorage.setItem('ted-preview-' + key, JSON.stringify(val));
+  } catch {}
+  // Send to Make.com webhook
+  try {
+    await fetch(WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, data: val, updatedAt: new Date().toISOString() }),
+    });
+  } catch (err) {
+    console.warn("Webhook delivery failed:", err);
+  }
+}
+
+async function storePushAll() {
+  return { ok: true };
+}
+
+// ── Primitive components ─────────────────────────────────────────────────────
+
+const Avatar = ({ name, size = 40 }) => {
+  const initials = name
+    .split(" ")
+    .map((w) => w[0] || "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const hue = [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: `hsl(${hue}, 38%, 52%)`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#fff",
+        fontWeight: 500,
+        fontSize: size * 0.36,
+        flexShrink: 0,
+        fontFamily: "'DM Sans', sans-serif",
+      }}
+    >
+      {initials}
+    </div>
+  );
+};
+
+const RatingDots = ({ value, onChange }) => (
+  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+    {[1, 2, 3, 4, 5].map((n) => (
+      <div
+        key={n}
+        onClick={() => onChange && onChange(n)}
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: "50%",
+          border: `2px solid ${n <= value ? "#D4793A" : "var(--color-border-secondary)"}`,
+          background: n <= value ? "#D4793A" : "transparent",
+          cursor: onChange ? "pointer" : "default",
+          transition: "all .15s",
+          flexShrink: 0,
+        }}
+      />
+    ))}
+    {value > 0 && (
+      <span style={{ fontSize: 12, color: "var(--color-text-secondary)", marginLeft: 4 }}>
+        {RATING_LABELS[value]}
+      </span>
+    )}
+  </div>
+);
+
+const UrgencyBadge = ({ days }) => {
+  const [bg, text, label] =
+    days < 0
+      ? ["#FCEBEB", "#A32D2D", `${Math.abs(days)}d overdue`]
+      : days === 0
+      ? ["#FCEBEB", "#A32D2D", "Today"]
+      : days <= 7
+      ? ["#FAEEDA", "#854F0B", `${days}d`]
+      : days <= 30
+      ? ["#EAF3DE", "#3B6D11", `${days}d`]
+      : ["#E6F1FB", "#185FA5", `${days}d`];
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        color: text,
+        background: bg,
+        borderRadius: 4,
+        padding: "3px 8px",
+        whiteSpace: "nowrap",
+        fontFamily: "'DM Sans', sans-serif",
+      }}
+    >
+      {label}
+    </span>
+  );
+};
+
+const Modal = ({ title, onClose, children, wide }) => (
+  <div style={{ maxWidth: wide ? 880 : 560 }}>
+    <button
+      onClick={onClose}
+      style={{ background: "none", border: "none", color: "var(--color-text-secondary)", cursor: "pointer", fontSize: 14, marginBottom: 20, fontFamily: "'DM Sans', sans-serif", padding: 0, display: "block" }}
+    >
+      ← Cancel
+    </button>
+    <h2
+      style={{
+        fontFamily: "'DM Sans', sans-serif",
+        fontSize: 24,
+        fontWeight: 700,
+        color: "var(--color-text-primary)",
+        margin: "0 0 24px",
+      }}
+    >
+      {title}
+    </h2>
+    <div
+      style={{
+        background: "var(--color-background-primary)",
+        borderRadius: 12,
+        padding: 28,
+        border: "0.5px solid var(--color-border-tertiary)",
+      }}
+    >
+      {children}
+    </div>
+  </div>
+);
+
+// Form primitives
+const FL = ({ children, mt = 16 }) => (
+  <label
+    style={{
+      display: "block",
+      fontSize: 10,
+      fontFamily: "'DM Mono', monospace",
+      textTransform: "uppercase",
+      letterSpacing: "0.12em",
+      color: "var(--color-text-secondary)",
+      marginTop: mt,
+      marginBottom: 6,
+    }}
+  >
+    {children}
+  </label>
+);
+const FI = (props) => (
+  <input
+    {...props}
+    style={{
+      width: "100%",
+      padding: "9px 12px",
+      border: "0.5px solid var(--color-border-secondary)",
+      borderRadius: 8,
+      fontSize: 14,
+      fontFamily: "'DM Sans', sans-serif",
+      color: "var(--color-text-primary)",
+      background: "var(--color-background-secondary)",
+      outline: "none",
+      boxSizing: "border-box",
+      ...props.style,
+    }}
+  />
+);
+const FTA = (props) => (
+  <textarea
+    {...props}
+    style={{
+      width: "100%",
+      padding: "9px 12px",
+      border: "0.5px solid var(--color-border-secondary)",
+      borderRadius: 8,
+      fontSize: 14,
+      fontFamily: "'DM Sans', sans-serif",
+      color: "var(--color-text-primary)",
+      background: "var(--color-background-secondary)",
+      outline: "none",
+      resize: "vertical",
+      boxSizing: "border-box",
+      ...props.style,
+    }}
+  />
+);
+const FSel = ({ value, onChange, children }) => (
+  <select
+    value={value}
+    onChange={onChange}
+    style={{
+      width: "100%",
+      padding: "9px 12px",
+      border: "0.5px solid var(--color-border-secondary)",
+      borderRadius: 8,
+      fontSize: 14,
+      fontFamily: "'DM Sans', sans-serif",
+      color: "var(--color-text-primary)",
+      background: "var(--color-background-secondary)",
+      outline: "none",
+      boxSizing: "border-box",
+    }}
+  >
+    {children}
+  </select>
+);
+
+const Btn = ({ children, onClick, disabled, variant = "primary", style: extraStyle }) => {
+  const styles = {
+    primary: {
+      background: disabled ? "var(--color-background-secondary)" : "#5C3D2E",
+      color: disabled ? "var(--color-text-secondary)" : "#FAF8F5",
+      border: "none",
+    },
+    secondary: {
+      background: "transparent",
+      color: "var(--color-text-primary)",
+      border: "0.5px solid var(--color-border-secondary)",
+    },
+    danger: {
+      background: "transparent",
+      color: "#A32D2D",
+      border: "0.5px solid #F09595",
+    },
+  };
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        ...styles[variant],
+        borderRadius: 8,
+        padding: "8px 16px",
+        fontFamily: "'DM Sans', sans-serif",
+        fontSize: 14,
+        fontWeight: 500,
+        cursor: disabled ? "not-allowed" : "pointer",
+        transition: "all .15s",
+        whiteSpace: "nowrap",
+        ...extraStyle,
+      }}
+    >
+      {children}
+    </button>
+  );
+};
+
+const FormActions = ({ onCancel, onSave, saveLabel = "Save", disabled }) => (
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: 10,
+      marginTop: 24,
+      paddingTop: 20,
+      borderTop: "0.5px solid var(--color-border-tertiary)",
+    }}
+  >
+    <Btn variant="secondary" onClick={onCancel}>
+      Cancel
+    </Btn>
+    <Btn onClick={onSave} disabled={disabled}>
+      {saveLabel}
+    </Btn>
+  </div>
+);
+
+// ── Form modals ──────────────────────────────────────────────────────────────
+
+const AddEmployeeModal = ({ onClose, onSave }) => {
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("");
+  const [email, setEmail] = useState("");
+  const [startDate, setStartDate] = useState("");
+  return (
+    <Modal title="Add staff member" onClose={onClose}>
+      <FL mt={0}>Full name *</FL>
+      <FI value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Smith" autoFocus />
+      <FL>Role / title</FL>
+      <FI value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Senior Fabricator" />
+      <FL>Email address</FL>
+      <FI type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@studio.com" />
+      <FL>Start date</FL>
+      <FI type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+      <FormActions
+        onCancel={onClose}
+        onSave={() => onSave({ id: uid(), name: name.trim(), role: role.trim(), email: email.trim(), startDate, status: "active" })}
+        saveLabel="Add staff member"
+        disabled={!name.trim()}
+      />
+    </Modal>
+  );
+};
+
+const ScheduleModal = ({ emp, onClose, onSave }) => {
+  const [date, setDate] = useState("");
+  const [type, setType] = useState("Quarterly");
+  const [notes, setNotes] = useState("");
+  return (
+    <Modal title={`Schedule review — ${emp.name}`} onClose={onClose}>
+      <FL mt={0}>Review date *</FL>
+      <FI type="date" value={date} onChange={(e) => setDate(e.target.value)} min={todayStr()} autoFocus />
+      <FL>Review type</FL>
+      <FSel value={type} onChange={(e) => setType(e.target.value)}>
+        {REVIEW_TYPES.map((t) => (
+          <option key={t}>{t}</option>
+        ))}
+      </FSel>
+      <FL>Notes (optional)</FL>
+      <FI value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Prep reminders…" />
+      <FormActions
+        onCancel={onClose}
+        onSave={() =>
+          onSave({
+            id: uid(),
+            employeeId: emp.id,
+            date,
+            type,
+            notes,
+            completed: false,
+            createdAt: todayStr(),
+          })
+        }
+        saveLabel="Schedule"
+        disabled={!date}
+      />
+    </Modal>
+  );
+};
+
+// ── Reusable rating selector for form questions ───────────────────────────────
+const QuestionRating = ({ q, value, onChange, selfValue, readOnly }) => (
+  <div style={{ marginBottom: 18 }}>
+    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 8, lineHeight: 1.5 }}>
+      <span style={{ color: "var(--color-text-secondary)", marginRight: 6 }}>{q.num}.</span>{q.text}
+    </div>
+    <div style={{ display: "flex", gap: 0, marginBottom: q.scaleMin ? 6 : 0 }}>
+      {[1,2,3,4,5].map(n => (
+        <button key={n} onClick={() => !readOnly && onChange && onChange(n === value ? 0 : n)}
+          style={{ width: 52, padding: "9px 0", border: "0.5px solid var(--color-border-tertiary)", borderRight: n < 5 ? "none" : "0.5px solid var(--color-border-tertiary)", borderRadius: n === 1 ? "6px 0 0 6px" : n === 5 ? "0 6px 6px 0" : 0, background: value === n ? "var(--color-text-primary)" : "var(--color-background-secondary)", color: value === n ? "var(--color-background-primary)" : "var(--color-text-secondary)", fontSize: 15, fontWeight: value === n ? 700 : 400, cursor: readOnly ? "default" : "pointer", transition: "all .12s", fontFamily: "'DM Sans', sans-serif" }}>
+          {n}
+        </button>
+      ))}
+      {value > 0 && !readOnly && (
+        <span style={{ marginLeft: 12, fontSize: 12, color: "var(--color-text-secondary)", alignSelf: "center" }}>
+          {["","Below expectations","Needs development","Meets expectations","Exceeds expectations","Outstanding"][value]}
+        </span>
+      )}
+      {readOnly && value > 0 && (
+        <span style={{ marginLeft: 12, fontSize: 13, fontWeight: 600, color: "var(--color-text-primary)", alignSelf: "center" }}>
+          {value} — {["","Below expectations","Needs development","Meets expectations","Exceeds expectations","Outstanding"][value]}
+        </span>
+      )}
+    </div>
+    {q.scaleMin && !readOnly && (
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--color-text-secondary)", paddingTop: 2 }}>
+        <span>1 = {q.scaleMin}</span><span>5 = {q.scaleMax}</span>
+      </div>
+    )}
+    {/* Employee self-assessment rating (read-only comparison) */}
+    {selfValue !== undefined && selfValue > 0 && (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, padding: "6px 10px", background: "#E6F1FB", borderRadius: 6 }}>
+        <span style={{ fontSize: 11, color: "#185FA5", fontWeight: 600 }}>Self-assessment:</span>
+        <span style={{ fontSize: 12, color: "#185FA5" }}>{selfValue} — {["","Below expectations","Needs development","Meets expectations","Exceeds expectations","Outstanding"][selfValue]}</span>
+      </div>
+    )}
+  </div>
+);
+
+const ReviewModal = ({ emp, prevReviews, onClose, onSave, formDef, employees }) => {
+  const fd = formDef || DEFAULT_FORM_DEF;
+  // All active staff + Ted (owner) as input sources — everyone's observations count
+  const inputSources = [
+    "Ted Ellison",
+    ...(employees || [])
+      .filter(e => e.status !== "terminated" && e.name !== "Ted Ellison")
+      .map(e => e.name),
+  ];
+  const [date, setDate] = useState(todayStr());
+  const [type, setType] = useState("Quarterly");
+  const [reviewer, setReviewer] = useState("Ted Ellison");
+  const [reviewPeriod, setReviewPeriod] = useState("");
+  const [responses, setResponses] = useState({});
+  const [peerInputs, setPeerInputs] = useState(Object.fromEntries(fd.sections.map(s => [s.id, []])));
+  const [addingPeer, setAddingPeer] = useState(null);
+  const [overallRating, setOverallRating] = useState("");
+  const [summaryNotes, setSummaryNotes] = useState("");
+  const [newGoal, setNewGoal] = useState("");
+  const [goals, setGoals] = useState([]);
+
+  const prevOpenGoals = prevReviews.flatMap(r =>
+    (r.goals || []).filter(g => g.status === "open").map(g => ({ ...g, sourceReviewId: r.id }))
+  );
+  const [carry, setCarry] = useState(Object.fromEntries(prevOpenGoals.map(g => [g.id, true])));
+
+  const setResponse = (qId, val) => setResponses(p => ({ ...p, [qId]: val }));
+
+  const savePeerInput = () => {
+    if (!addingPeer?.source?.trim() || !addingPeer?.note?.trim()) return;
+    const entry = { id: uid(), source: addingPeer.source.trim(), note: addingPeer.note.trim() };
+    setPeerInputs(p => ({ ...p, [addingPeer.secId]: [...(p[addingPeer.secId] || []), entry] }));
+    setAddingPeer(null);
+  };
+  const removePeerInput = (secId, id) =>
+    setPeerInputs(p => ({ ...p, [secId]: (p[secId] || []).filter(x => x.id !== id) }));
+
+  const addGoal = () => {
+    if (!newGoal.trim()) return;
+    setGoals(p => [...p, { id: uid(), text: newGoal.trim(), status: "open", createdAt: todayStr() }]);
+    setNewGoal("");
+  };
+
+  const handleSave = () => {
+    const carriedGoals = prevOpenGoals.filter(g => carry[g.id]).map(g => ({ ...g, status: "open", carriedFrom: g.sourceReviewId }));
+    const review = {
+      id: uid(), employeeId: emp.id, date, type, reviewer, reviewPeriod,
+      responses, peerInputs, overallRating, summaryNotes,
+      goals: [...carriedGoals, ...goals],
+      formSnapshot: fd,
+      createdAt: todayStr(),
+    };
+    const sourceIds = prevOpenGoals.filter(g => carry[g.id]).map(g => g.sourceReviewId);
+    const carriedIds = prevOpenGoals.filter(g => carry[g.id]).map(g => g.id);
+    onSave(review, sourceIds, carriedIds);
+  };
+
+  return (
+    <div style={{ maxWidth: 820 }}>
+      <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--color-text-secondary)", cursor: "pointer", fontSize: 14, marginBottom: 20, fontFamily: "'DM Sans', sans-serif", padding: 0, display: "block" }}>
+        ← Cancel
+      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
+        <Avatar name={emp.name} size={48} />
+        <div>
+          <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 22, fontWeight: 700, color: "var(--color-text-primary)", margin: 0 }}>Performance review — {emp.name}</h2>
+          <div style={{ fontSize: 13, color: "var(--color-text-secondary)", marginTop: 3 }}>{emp.role}</div>
+        </div>
+      </div>
+
+      {/* Header meta */}
+      <div style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 12, padding: 20, marginBottom: 24, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14 }}>
+        <div><FL mt={0}>Review date *</FL><FI type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
+        <div><FL mt={0}>Review type</FL><FSel value={type} onChange={e => setType(e.target.value)}>{REVIEW_TYPES.map(t => <option key={t}>{t}</option>)}</FSel></div>
+        <div><FL mt={0}>Reviewer</FL><FI value={reviewer} onChange={e => setReviewer(e.target.value)} placeholder="Reviewer name" /></div>
+        <div><FL mt={0}>Review period</FL><FI value={reviewPeriod} onChange={e => setReviewPeriod(e.target.value)} placeholder="e.g. Q1 2026" /></div>
+      </div>
+
+      {/* Sections */}
+      {fd.sections.map(sec => (
+        <div key={sec.id} style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderLeft: `3px solid ${sec.color}`, borderRadius: "0 12px 12px 0", marginBottom: 20, overflow: "hidden" }}>
+          <div style={{ padding: "12px 20px", background: sec.bg + "55", borderBottom: "0.5px solid var(--color-border-tertiary)" }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: sec.color }}>{sec.title}</div>
+            <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2 }}>{sec.description}</div>
+          </div>
+          <div style={{ padding: "18px 20px 4px" }}>
+            {sec.questions.map(q => q.type === "rating" ? (
+              <QuestionRating key={q.id} q={q} value={responses[q.id] || 0} onChange={v => setResponse(q.id, v)} />
+            ) : (
+              <div key={q.id} style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 6, lineHeight: 1.5 }}>
+                  <span style={{ color: "var(--color-text-secondary)", marginRight: 6 }}>{q.num}.</span>{q.text}
+                </div>
+                <FTA value={responses[q.id] || ""} onChange={e => setResponse(q.id, e.target.value)} rows={3} placeholder={q.placeholder || "Optional comments…"} />
+              </div>
+            ))}
+          </div>
+
+          {/* Staff input — visible, prominent, everyone included */}
+          <div style={{ padding: "16px 20px 18px", background: "#E8DFD0", borderTop: `3px solid ${sec.color}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+              <div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: sec.color, marginBottom: 3 }}>
+                  Staff input {(peerInputs[sec.id] || []).length > 0 && `(${(peerInputs[sec.id] || []).length})`}
+                </div>
+                <div style={{ fontSize: 12, color: "#5C3D2E" }}>
+                  Record observations from anyone on the team — your own notes go here too.
+                </div>
+              </div>
+              {addingPeer?.secId !== sec.id && (
+                <button
+                  onClick={() => setAddingPeer({ secId: sec.id, source: "Ted Ellison", note: "" })}
+                  style={{ background: "#5C3D2E", border: "none", color: "#FAF8F5", borderRadius: 6, padding: "7px 16px", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 16 }}>
+                  + Add input
+                </button>
+              )}
+            </div>
+
+            {(peerInputs[sec.id] || []).map(pi => (
+              <div key={pi.id} style={{ background: "#FAF8F5", border: `0.5px solid ${sec.color}44`, borderLeft: `3px solid ${sec.color}`, borderRadius: "0 8px 8px 0", padding: "10px 14px", marginBottom: 8, display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: sec.color, marginBottom: 4 }}>{pi.source}</div>
+                  <p style={{ fontSize: 13, color: "#1B2838", margin: 0, lineHeight: 1.6 }}>{pi.note}</p>
+                </div>
+                <button onClick={() => removePeerInput(sec.id, pi.id)}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#5C3D2E", opacity: 0.4, padding: "0 2px", lineHeight: 1 }}>×</button>
+              </div>
+            ))}
+
+            {addingPeer?.secId === sec.id && (
+              <div style={{ background: "#FAF8F5", border: "0.5px solid #D4C8B5", borderRadius: 8, padding: 16, marginTop: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 14, marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "#5C3D2E", marginBottom: 6 }}>Input from</div>
+                    <FSel value={addingPeer.source} onChange={e => setAddingPeer(p => ({ ...p, source: e.target.value }))}>
+                      {inputSources.map(name => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </FSel>
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "#5C3D2E", marginBottom: 6 }}>Observation</div>
+                    <FTA
+                      value={addingPeer.note}
+                      onChange={e => setAddingPeer(p => ({ ...p, note: e.target.value }))}
+                      placeholder="What did they observe about this person in this area?"
+                      rows={3}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                  <Btn variant="secondary" onClick={() => setAddingPeer(null)} style={{ fontSize: 12, padding: "5px 12px" }}>Cancel</Btn>
+                  <Btn onClick={savePeerInput} disabled={!addingPeer.note?.trim()} style={{ fontSize: 12, padding: "5px 14px" }}>Save input</Btn>
+                </div>
+              </div>
+            )}
+
+            {!(peerInputs[sec.id] || []).length && addingPeer?.secId !== sec.id && (
+              <p style={{ fontSize: 12, color: "#5C3D2E", opacity: 0.55, fontStyle: "italic", margin: "4px 0 0" }}>No input recorded yet.</p>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {/* Overall rating + summary */}
+      <div style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 12, padding: 20, marginBottom: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 10 }}>18. Overall rating for this review period</div>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
+          {fd.overallOptions.map(opt => (
+            <label key={opt} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", color: "var(--color-text-primary)" }}>
+              <input type="radio" name="overall" checked={overallRating === opt} onChange={() => setOverallRating(opt)} style={{ width: 16, height: 16 }} />
+              {opt}
+            </label>
+          ))}
+        </div>
+        <FL mt={0}>19. Reviewer's summary notes</FL>
+        <FTA value={summaryNotes} onChange={e => setSummaryNotes(e.target.value)} rows={4} placeholder="Final comments, context, or next steps…" />
+      </div>
+
+      {/* Goals */}
+      <div style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 12, padding: 20, marginBottom: 24 }}>
+        {prevOpenGoals.length > 0 && (<>
+          <FL mt={0}>Carry forward open goals</FL>
+          <p style={{ fontSize: 12, color: "var(--color-text-secondary)", margin: "0 0 10px" }}>Checked goals carry into this review.</p>
+          {prevOpenGoals.map(g => (
+            <label key={g.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 13, cursor: "pointer", color: "var(--color-text-primary)" }}>
+              <input type="checkbox" checked={!!carry[g.id]} onChange={e => setCarry(p => ({ ...p, [g.id]: e.target.checked }))} />
+              {g.text}
+            </label>
+          ))}
+        </>)}
+        <FL mt={prevOpenGoals.length > 0 ? 16 : 0}>New goals</FL>
+        {goals.map((g, i) => (
+          <div key={g.id} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center" }}>
+            <span style={{ flex: 1, fontSize: 13, color: "var(--color-text-primary)" }}>• {g.text}</span>
+            <button onClick={() => setGoals(p => p.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--color-text-secondary)" }}>×</button>
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 8 }}>
+          <FI style={{ flex: 1 }} value={newGoal} onChange={e => setNewGoal(e.target.value)} placeholder="Add a goal…" onKeyDown={e => e.key === "Enter" && addGoal()} />
+          <Btn variant="secondary" onClick={addGoal}>Add</Btn>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+        <Btn variant="secondary" onClick={onClose}>Cancel</Btn>
+        <Btn onClick={handleSave} disabled={!date}>Save review</Btn>
+      </div>
+    </div>
+  );
+};
+
+// ── Shared sub-components ────────────────────────────────────────────────────
+
+const Card = ({ children, style }) => (
+  <div
+    style={{
+      background: "var(--color-background-primary)",
+      border: "0.5px solid var(--color-border-tertiary)",
+      borderRadius: 12,
+      overflow: "hidden",
+      marginBottom: 16,
+      ...style,
+    }}
+  >
+    {children}
+  </div>
+);
+
+const CardHeader = ({ title, action }) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "14px 20px",
+      borderBottom: "0.5px solid var(--color-border-tertiary)",
+    }}
+  >
+    <span
+      style={{
+        fontFamily: "'DM Mono', monospace",
+        fontSize: 11,
+        fontWeight: 500,
+        textTransform: "uppercase",
+        letterSpacing: "0.1em",
+        color: "var(--color-text-primary)",
+      }}
+    >
+      {title}
+    </span>
+    {action}
+  </div>
+);
+
+const ListRow = ({ onClick, children, muted }) => (
+  <div
+    onClick={onClick}
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      padding: "13px 20px",
+      borderBottom: "0.5px solid var(--color-border-tertiary)",
+      cursor: onClick ? "pointer" : "default",
+      opacity: muted ? 0.55 : 1,
+    }}
+  >
+    {children}
+  </div>
+);
+
+const EmptyMsg = ({ children }) => (
+  <p
+    style={{
+      color: "var(--color-text-secondary)",
+      fontSize: 14,
+      padding: 20,
+      fontStyle: "italic",
+    }}
+  >
+    {children}
+  </p>
+);
+
+// ── Counseling Record Modal ───────────────────────────────────────────────────
+const CounselingModal = ({ emp, onClose, onSave, existing }) => {
+  const e = existing || {};
+  const [date, setDate] = useState(e.date || todayStr());
+  const [reporter, setReporter] = useState(e.reporter || REPORTERS[0]);
+  const [category, setCategory] = useState(e.category || INC_CATEGORIES[0]);
+  const [severity, setSeverity] = useState(e.severity || "observation");
+  const [description, setDescription] = useState(e.description || "");
+  const [priorYes, setPriorYes] = useState(e.priorDiscussions || false);
+  const [priorDetail, setPriorDetail] = useState(e.priorDetail || "");
+  const [empResponse, setEmpResponse] = useState(e.employeeResponse || "");
+  const [empAck, setEmpAck] = useState(e.employeeAcknowledged || false);
+  const [followUp, setFollowUp] = useState(e.followUpDate || "");
+  const [newItem, setNewItem] = useState("");
+  const [newDue, setNewDue] = useState("");
+  const [actionItems, setActionItems] = useState(e.actionItems || []);
+
+  const addItem = () => {
+    if (!newItem.trim()) return;
+    setActionItems((p) => [...p, { id: uid(), text: newItem.trim(), dueDate: newDue, status: "open", createdAt: todayStr() }]);
+    setNewItem(""); setNewDue("");
+  };
+  const sev = INC_SEVERITY.find((s) => s.key === severity);
+
+  return (
+    <Modal title={existing ? "Edit counseling record" : `Counseling record — ${emp.name}`} onClose={onClose} wide>
+      {/* Confidential banner */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#FAEEDA", border: "0.5px solid #FAC775", borderRadius: 8, padding: "9px 14px", marginBottom: 20 }}>
+        <span style={{ fontSize: 16 }}>🔒</span>
+        <span style={{ fontSize: 12, color: "#633806", fontWeight: 500 }}>
+          Confidential — authorized reporters only. Not visible to the employee being documented.
+        </span>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28 }}>
+        {/* Left column */}
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <FL mt={0}>Date *</FL>
+              <FI type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div>
+              <FL mt={0}>Reported by *</FL>
+              <FSel value={reporter} onChange={(e) => setReporter(e.target.value)}>
+                {REPORTERS.map((r) => <option key={r}>{r}</option>)}
+              </FSel>
+            </div>
+          </div>
+
+          <FL>Category</FL>
+          <FSel value={category} onChange={(e) => setCategory(e.target.value)}>
+            {INC_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+          </FSel>
+
+          <FL>Level / type</FL>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {INC_SEVERITY.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setSeverity(s.key)}
+                style={{
+                  padding: "5px 12px", borderRadius: 6, fontSize: 12, fontFamily: "'DM Sans', sans-serif",
+                  fontWeight: 500, cursor: "pointer", border: "none",
+                  background: severity === s.key ? s.bg : "var(--color-background-secondary)",
+                  color: severity === s.key ? s.color : "var(--color-text-secondary)",
+                  outline: severity === s.key ? `2px solid ${s.color}` : "none",
+                  transition: "all .15s",
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          <FL>Description of incident / observation *</FL>
+          <FTA
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={5}
+            placeholder="Describe what was observed, reported, or occurred. Include dates, times, specifics, and any witnesses if applicable."
+          />
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 16 }}>
+            <input type="checkbox" id="prior" checked={priorYes} onChange={(e) => setPriorYes(e.target.checked)} />
+            <label htmlFor="prior" style={{ fontSize: 13, color: "var(--color-text-primary)", cursor: "pointer" }}>
+              This issue has been discussed with the employee previously
+            </label>
+          </div>
+          {priorYes && (
+            <>
+              <FL>Prior discussion details</FL>
+              <FTA value={priorDetail} onChange={(e) => setPriorDetail(e.target.value)} rows={2} placeholder="When, what was discussed, any prior documentation…" />
+            </>
+          )}
+        </div>
+
+        {/* Right column */}
+        <div>
+          <FL mt={0}>Employee response / acknowledgment</FL>
+          <FTA
+            value={empResponse}
+            onChange={(e) => setEmpResponse(e.target.value)}
+            rows={4}
+            placeholder="Document the employee's verbal response, explanation, or any context they provided during the discussion."
+          />
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+            <input type="checkbox" id="ack" checked={empAck} onChange={(e) => setEmpAck(e.target.checked)} />
+            <label htmlFor="ack" style={{ fontSize: 13, color: "var(--color-text-primary)", cursor: "pointer" }}>
+              Employee was informed of this documentation
+            </label>
+          </div>
+
+          <FL>Action items / corrective steps</FL>
+          <p style={{ fontSize: 12, color: "var(--color-text-secondary)", margin: "0 0 10px" }}>
+            Specific steps required, with due dates. These track as open goals on the employee's record.
+          </p>
+          {actionItems.map((item, i) => (
+            <div key={item.id} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center", background: "var(--color-background-secondary)", borderRadius: 6, padding: "7px 10px" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, color: "var(--color-text-primary)" }}>{item.text}</div>
+                {item.dueDate && <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 2 }}>Due {fmtDate(item.dueDate)}</div>}
+              </div>
+              <button onClick={() => setActionItems((p) => p.filter((_, j) => j !== i))}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--color-text-secondary)" }}>×</button>
+            </div>
+          ))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, marginTop: 4 }}>
+            <FI value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder="Action item…" onKeyDown={(e) => e.key === "Enter" && addItem()} />
+            <FI type="date" value={newDue} onChange={(e) => setNewDue(e.target.value)} style={{ width: 140 }} />
+            <Btn variant="secondary" onClick={addItem}>Add</Btn>
+          </div>
+
+          <FL>Follow-up review date</FL>
+          <FI type="date" value={followUp} onChange={(e) => setFollowUp(e.target.value)} min={todayStr()} />
+        </div>
+      </div>
+
+      <FormActions
+        onCancel={onClose}
+        onSave={() =>
+          onSave({
+            id: e.id || uid(),
+            employeeId: emp.id,
+            date, reporter, category, severity,
+            description,
+            priorDiscussions: priorYes,
+            priorDetail,
+            employeeResponse: empResponse,
+            employeeAcknowledged: empAck,
+            actionItems,
+            followUpDate: followUp,
+            createdAt: e.createdAt || todayStr(),
+            updatedAt: todayStr(),
+          })
+        }
+        saveLabel={existing ? "Save changes" : "Save record"}
+        disabled={!date || !description.trim()}
+      />
+    </Modal>
+  );
+};
+
+// ── Terminate Employee Modal ──────────────────────────────────────────────────
+const TERMINATION_TYPES = [
+  "Voluntary resignation",
+  "Mutual agreement",
+  "Layoff / reduction in force",
+  "Performance-based",
+  "End of contract",
+  "Other",
+];
+
+const TerminateModal = ({ emp, onClose, onSave }) => {
+  const [date, setDate] = useState(todayStr());
+  const [type, setType] = useState(TERMINATION_TYPES[0]);
+  const [notes, setNotes] = useState("");
+  return (
+    <Modal title={`Terminate — ${emp.name}`} onClose={onClose}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#FCEBEB", border: "0.5px solid #F09595", borderRadius: 8, padding: "9px 14px", marginBottom: 20 }}>
+        <span style={{ fontSize: 13, color: "#A32D2D" }}>
+          This will move the employee to the archive. All reviews, goals, and counseling records are preserved and remain accessible.
+        </span>
+      </div>
+      <FL mt={0}>Termination date *</FL>
+      <FI type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <FL>Reason</FL>
+      <FSel value={type} onChange={(e) => setType(e.target.value)}>
+        {TERMINATION_TYPES.map((t) => <option key={t}>{t}</option>)}
+      </FSel>
+      <FL>Notes (optional)</FL>
+      <FTA value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Final notes, circumstances, or anything relevant for the record…" />
+      <FormActions
+        onCancel={onClose}
+        onSave={() => onSave({ date, type, notes })}
+        saveLabel="Confirm termination"
+        disabled={!date}
+      />
+    </Modal>
+  );
+};
+
+// ── Default staff roster (TED) ───────────────────────────────────────────────
+const DEFAULT_EMPLOYEES = [
+  { id: uid(), name: "Grant Acker",           role: "Lead Fabricator / Installer / Shipper", startDate: "", status: "active" },
+  { id: uid(), name: "Angie Di Domenico",     role: "Fabricator",                            startDate: "", status: "active" },
+  { id: uid(), name: "Bryce Gaspard",         role: "Fabricator (part-time)",                startDate: "", status: "active" },
+  { id: uid(), name: "Mark Guthrie",          role: "Fabricator (part-time)",                startDate: "", status: "active" },
+  { id: uid(), name: "Jenna Kurtz-Medina",    role: "Operations / QuickBooks",               startDate: "", status: "active" },
+  { id: uid(), name: "Kirk Kwiatkowski",      role: "Fabricator",                            startDate: "", status: "active" },
+  { id: uid(), name: "Jesse Medina",          role: "Fabricator",                            startDate: "", status: "active" },
+  { id: uid(), name: "Eric Millman",          role: "Client Management",                     startDate: "", status: "active" },
+  { id: uid(), name: "Carrie Pilch",          role: "Lead Fabricator / Floor Manager",       startDate: "", status: "active" },
+  { id: uid(), name: "Libby Regan",           role: "Fabricator",                            startDate: "", status: "active" },
+  { id: uid(), name: "Casey Ress",            role: "",                                      startDate: "", status: "active" },
+  { id: uid(), name: "Max Robertson-Ellison", role: "Digital Design / Estimation",           startDate: "", status: "active" },
+];
+
+// ── Main App ─────────────────────────────────────────────────────────────────
+
+function App() {
+  const [loading, setLoading] = useState(true);
+  const [employees, setEmployees] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [scheduled, setScheduled] = useState([]);
+  const [incidents, setIncidents] = useState([]);
+  const [formDef, setFormDef] = useState(DEFAULT_FORM_DEF);
+  const [formEditMode, setFormEditMode] = useState(false);
+  const [editingQ, setEditingQ] = useState(null); // { secId, qId }
+  const [showArchived, setShowArchived] = useState(false);
+  const [view, setView] = useState("dashboard");
+  const [selEmp, setSelEmp] = useState(null);
+  const [selRev, setSelRev] = useState(null);
+  const [selInc, setSelInc] = useState(null);
+  const [modal, setModal] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      const [e, r, s, i, fd] = await Promise.all([
+        storeGet(KEYS.emps), storeGet(KEYS.revs),
+        storeGet(KEYS.sched), storeGet(KEYS.incs),
+        storeGet(KEYS.form),
+      ]);
+      setEmployees(e || DEFAULT_EMPLOYEES);
+      setReviews(r || []);
+      setScheduled(s || []);
+      setIncidents(i || []);
+      if (fd) setFormDef(fd);
+      setLoading(false);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!loading) storeSet(KEYS.emps, employees);
+  }, [employees, loading]);
+  useEffect(() => {
+    if (!loading) storeSet(KEYS.revs, reviews);
+  }, [reviews, loading]);
+  useEffect(() => {
+    if (!loading) storeSet(KEYS.sched, scheduled);
+  }, [scheduled, loading]);
+  useEffect(() => {
+    if (!loading) storeSet(KEYS.incs, incidents);
+  }, [incidents, loading]);
+  useEffect(() => {
+    if (!loading) storeSet(KEYS.form, formDef);
+  }, [formDef, loading]);
+
+  const empRevs = useCallback(
+    (id) =>
+      reviews
+        .filter((r) => r.employeeId === id)
+        .sort((a, b) => b.date.localeCompare(a.date)),
+    [reviews]
+  );
+  const empSched = useCallback(
+    (id) =>
+      scheduled
+        .filter((s) => s.employeeId === id && !s.completed)
+        .sort((a, b) => a.date.localeCompare(b.date)),
+    [scheduled]
+  );
+  const empIncs = useCallback(
+    (id) =>
+      incidents
+        .filter((i) => i.employeeId === id)
+        .sort((a, b) => b.date.localeCompare(a.date)),
+    [incidents]
+  );
+  const allUpcoming = scheduled
+    .filter((s) => !s.completed)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const navTo = (v, emp = null, rev = null, inc = null) => {
+    setView(v);
+    if (emp) setSelEmp(emp);
+    if (rev) setSelRev(rev);
+    if (inc !== null) setSelInc(inc);
+    setModal(null);
+  };
+
+  // Modal save handlers
+  const handleSaveEmployee = (emp) => {
+    setEmployees((p) => [...p, emp]);
+    setModal(null);
+  };
+  const handleSaveSchedule = (sched) => {
+    setScheduled((p) => [...p, sched]);
+    setModal(null);
+  };
+  const handleSaveReview = (review, sourceIds, carriedIds) => {
+    setReviews((p) => {
+      const updated = p.map((r) =>
+        sourceIds.includes(r.id)
+          ? { ...r, goals: r.goals.map((g) => (carriedIds.includes(g.id) ? { ...g, status: "carried" } : g)) }
+          : r
+      );
+      return [...updated, review];
+    });
+    setScheduled((p) =>
+      p.map((s) =>
+        s.employeeId === review.employeeId && !s.completed && Math.abs(daysUntil(s.date)) <= 14
+          ? { ...s, completed: true }
+          : s
+      )
+    );
+    setModal(null);
+    setSelRev(review);
+    setView("reviewDetail");
+  };
+
+  const handleSaveIncident = (inc) => {
+    setIncidents((p) => {
+      const exists = p.find((x) => x.id === inc.id);
+      return exists ? p.map((x) => (x.id === inc.id ? inc : x)) : [...p, inc];
+    });
+    setModal(null);
+    setSelInc(inc);
+    setView("incidentDetail");
+  };
+
+  const handleTerminate = (terminationData) => {
+    setEmployees((p) =>
+      p.map((e) =>
+        e.id === selEmp.id
+          ? { ...e, status: "terminated", terminatedDate: terminationData.date, terminationType: terminationData.type, terminationNotes: terminationData.notes }
+          : e
+      )
+    );
+    setModal(null);
+    navTo("staff");
+  };
+
+  const handleReactivate = (empId) => {
+    setEmployees((p) =>
+      p.map((e) =>
+        e.id === empId
+          ? { ...e, status: "active", terminatedDate: "", terminationType: "", terminationNotes: "" }
+          : e
+      )
+    );
+  };
+
+  // ── Form editing helpers ─────────────────────────────────────────────────────
+  const updateFormQuestion = (secId, qId, field, val) =>
+    setFormDef(p => ({ ...p, sections: p.sections.map(s => s.id !== secId ? s : { ...s, questions: s.questions.map(q => q.id !== qId ? q : { ...q, [field]: val }) }) }));
+
+  const deleteFormQuestion = (secId, qId) =>
+    setFormDef(p => ({ ...p, sections: p.sections.map(s => s.id !== secId ? s : { ...s, questions: s.questions.filter(q => q.id !== qId) }) }));
+
+  const addFormQuestion = (secId, type) => {
+    const sec = formDef.sections.find(s => s.id === secId);
+    const maxNum = Math.max(0, ...formDef.sections.flatMap(s => s.questions.map(q => q.num || 0)));
+    const newQ = { id: uid(), num: maxNum + 1, type, selfAssess: false, text: type === "rating" ? "New rating question" : "New notes field:", scaleMin: "Needs significant improvement", scaleMax: "Exceptional", placeholder: "Optional comments…" };
+    setFormDef(p => ({ ...p, sections: p.sections.map(s => s.id !== secId ? s : { ...s, questions: [...s.questions, newQ] }) }));
+    setEditingQ({ secId, qId: newQ.id });
+  };
+
+  const updateFormSection = (secId, field, val) =>
+    setFormDef(p => ({ ...p, sections: p.sections.map(s => s.id !== secId ? s : { ...s, [field]: val }) }));
+
+  const deleteFormSection = (secId) =>
+    setFormDef(p => ({ ...p, sections: p.sections.filter(s => s.id !== secId) }));
+
+  const addFormSection = () => {
+    const newSec = { id: uid(), title: "New section", description: "Reviewer completes this section", color: "#185FA5", bg: "#E6F1FB", questions: [] };
+    setFormDef(p => ({ ...p, sections: [...p.sections, newSec] }));
+  };
+
+  const updateOverallOption = (idx, val) =>
+    setFormDef(p => ({ ...p, overallOptions: p.overallOptions.map((o, i) => i === idx ? val : o) }));
+
+  const deleteOverallOption = (idx) =>
+    setFormDef(p => ({ ...p, overallOptions: p.overallOptions.filter((_, i) => i !== idx) }));
+
+  const addOverallOption = () =>
+    setFormDef(p => ({ ...p, overallOptions: [...p.overallOptions, "New option"] }));
+
+  // ── View: Form design ────────────────────────────────────────────────────────
+  const renderFormDesign = () => {
+    const SECTION_COLORS = ["#0F6E56","#533748","#854F0B","#993C1D","#185FA5","#3C3489","#3B6D11","#A32D2D"];
+    const SECTION_BGS   = ["#E1F5EE","#FBEAF0","#FAEEDA","#FAECE7","#E6F1FB","#EEEDFE","#EAF3DE","#FCEBEB"];
+
+    return (
+      <div style={{ maxWidth: 820 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+          <h1 style={{ ...styles.pageTitle, margin: 0 }}>Review form design</h1>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            {formEditMode && (
+              <Btn variant="secondary" onClick={() => setFormDef(DEFAULT_FORM_DEF)} style={{ fontSize: 12 }}>
+                Reset to default
+              </Btn>
+            )}
+            <Btn variant={formEditMode ? "primary" : "secondary"} onClick={() => { setFormEditMode(p => !p); setEditingQ(null); }}>
+              {formEditMode ? "✓ Done editing" : "Edit form"}
+            </Btn>
+          </div>
+        </div>
+
+        {!formEditMode && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#E6F1FB", border: "0.5px solid #B5D4F4", borderRadius: 8, padding: "9px 14px", marginBottom: 20, fontSize: 13, color: "#185FA5" }}>
+            This is the live form used for all new reviews. Click "Edit form" to add, remove, or reword questions and sections.
+          </div>
+        )}
+
+        {/* Sections */}
+        {formDef.sections.map((sec, si) => (
+          <div key={sec.id} style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderLeft: `3px solid ${sec.color}`, borderRadius: "0 12px 12px 0", marginBottom: 20, overflow: "hidden" }}>
+            {/* Section header */}
+            <div style={{ padding: "12px 20px", background: sec.bg + "55", borderBottom: "0.5px solid var(--color-border-tertiary)", display: "flex", alignItems: "center", gap: 10 }}>
+              {formEditMode ? (
+                <>
+                  <input value={sec.title} onChange={e => updateFormSection(sec.id, "title", e.target.value)}
+                    style={{ fontSize: 15, fontWeight: 600, color: sec.color, background: "transparent", border: "none", outline: "none", flex: 1, fontFamily: "'DM Sans', sans-serif" }} />
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {SECTION_COLORS.map((c, ci) => (
+                      <div key={c} onClick={() => { updateFormSection(sec.id, "color", c); updateFormSection(sec.id, "bg", SECTION_BGS[ci]); }}
+                        style={{ width: 16, height: 16, borderRadius: "50%", background: c, cursor: "pointer", border: sec.color === c ? "2px solid var(--color-text-primary)" : "2px solid transparent" }} />
+                    ))}
+                  </div>
+                  <button onClick={() => { if (confirm("Delete this section?")) deleteFormSection(sec.id); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#A32D2D", padding: "0 4px" }}>🗑</button>
+                </>
+              ) : (
+                <div style={{ fontSize: 15, fontWeight: 600, color: sec.color }}>{sec.title}</div>
+              )}
+            </div>
+
+            {/* Questions */}
+            <div style={{ padding: formEditMode ? "12px 20px" : "16px 20px 4px" }}>
+              {sec.questions.map((q, qi) => (
+                <div key={q.id}>
+                  {formEditMode && editingQ?.secId === sec.id && editingQ?.qId === q.id ? (
+                    /* Inline edit form */
+                    <div style={{ background: "var(--color-background-secondary)", borderRadius: 8, padding: 14, marginBottom: 12, border: "0.5px solid var(--color-border-secondary)" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: 10, marginBottom: 10 }}>
+                        <div>
+                          <FL mt={0}>Question text</FL>
+                          <FTA value={q.text} onChange={e => updateFormQuestion(sec.id, q.id, "text", e.target.value)} rows={2} />
+                        </div>
+                        <div>
+                          <FL mt={0}>Type</FL>
+                          <FSel value={q.type} onChange={e => updateFormQuestion(sec.id, q.id, "type", e.target.value)}>
+                            <option value="rating">Rating (1–5)</option>
+                            <option value="text">Text / notes</option>
+                          </FSel>
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 12, cursor: "pointer", color: "var(--color-text-primary)" }}>
+                            <input type="checkbox" checked={!!q.selfAssess} onChange={e => updateFormQuestion(sec.id, q.id, "selfAssess", e.target.checked)} />
+                            Include in self-assessment
+                          </label>
+                        </div>
+                      </div>
+                      {q.type === "rating" && (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                          <div><FL mt={0}>Scale min label (1)</FL><FI value={q.scaleMin || ""} onChange={e => updateFormQuestion(sec.id, q.id, "scaleMin", e.target.value)} placeholder="e.g. Needs improvement" /></div>
+                          <div><FL mt={0}>Scale max label (5)</FL><FI value={q.scaleMax || ""} onChange={e => updateFormQuestion(sec.id, q.id, "scaleMax", e.target.value)} placeholder="e.g. Exceptional" /></div>
+                        </div>
+                      )}
+                      {q.type === "text" && (
+                        <div style={{ marginBottom: 10 }}>
+                          <FL mt={0}>Placeholder text</FL>
+                          <FI value={q.placeholder || ""} onChange={e => updateFormQuestion(sec.id, q.id, "placeholder", e.target.value)} placeholder="Optional comments…" />
+                        </div>
+                      )}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <Btn variant="danger" onClick={() => { if (confirm("Delete this question?")) { deleteFormQuestion(sec.id, q.id); setEditingQ(null); } }} style={{ fontSize: 12, padding: "4px 10px" }}>Delete question</Btn>
+                        <Btn onClick={() => setEditingQ(null)} style={{ fontSize: 12, padding: "4px 12px" }}>Done</Btn>
+                      </div>
+                    </div>
+                  ) : formEditMode ? (
+                    /* Edit mode row */
+                    <div onClick={() => setEditingQ({ secId: sec.id, qId: q.id })}
+                      style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 10px", borderRadius: 6, marginBottom: 4, cursor: "pointer", background: "transparent" }}
+                      onMouseOver={e => e.currentTarget.style.background = "var(--color-background-secondary)"}
+                      onMouseOut={e => e.currentTarget.style.background = "transparent"}>
+                      <span style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 2, minWidth: 20 }}>{q.num}.</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, color: "var(--color-text-primary)", lineHeight: 1.5 }}>{q.text}</div>
+                        <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 2 }}>
+                          {q.type === "rating" ? `Rating 1–5 · ${q.scaleMin} → ${q.scaleMax}` : "Text field"}
+                          {q.selfAssess && " · ✓ Self-assessment"}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 2 }}>click to edit →</span>
+                    </div>
+                  ) : (
+                    /* Preview mode */
+                    q.type === "rating" ? (
+                      <QuestionRating key={q.id} q={q} value={0} readOnly />
+                    ) : (
+                      <div key={q.id} style={{ marginBottom: 18 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 6, lineHeight: 1.5 }}>
+                          <span style={{ color: "var(--color-text-secondary)", marginRight: 6 }}>{q.num}.</span>{q.text}
+                        </div>
+                        <div style={{ border: "0.5px solid var(--color-border-tertiary)", borderRadius: 6, padding: "8px 12px", fontSize: 13, color: "var(--color-text-secondary)", fontStyle: "italic", background: "var(--color-background-secondary)" }}>
+                          {q.placeholder || "Optional comments…"}
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              ))}
+              {formEditMode && (
+                <div style={{ display: "flex", gap: 8, paddingTop: 8, paddingBottom: 8 }}>
+                  <Btn variant="secondary" onClick={() => addFormQuestion(sec.id, "rating")} style={{ fontSize: 12, padding: "5px 12px" }}>+ Rating question</Btn>
+                  <Btn variant="secondary" onClick={() => addFormQuestion(sec.id, "text")} style={{ fontSize: 12, padding: "5px 12px" }}>+ Text field</Btn>
+                </div>
+              )}
+            </div>
+
+            {/* Staff input band — always present on every section */}
+            <div style={{ padding: "14px 20px 16px", background: "#E8DFD0", borderTop: `3px solid ${sec.color}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: sec.color, marginBottom: 2 }}>Staff input</div>
+                  <div style={{ fontSize: 12, color: "#5C3D2E" }}>Record observations from anyone on the team — your own notes go here too.</div>
+                </div>
+                <div style={{ background: "#5C3D2E", color: "#FAF8F5", borderRadius: 6, padding: "6px 14px", fontSize: 12, fontFamily: "'DM Sans', sans-serif", opacity: 0.5 }}>+ Add input</div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 12, marginTop: 10, opacity: 0.6 }}>
+                <div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "#5C3D2E", marginBottom: 5 }}>Input from</div>
+                  <div style={{ background: "#FAF8F5", border: "0.5px solid #D4C8B5", borderRadius: 6, padding: "8px 10px", fontSize: 13, color: "#5C3D2E", fontStyle: "italic" }}>Select staff member…</div>
+                </div>
+                <div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "#5C3D2E", marginBottom: 5 }}>Observation</div>
+                  <div style={{ background: "#FAF8F5", border: "0.5px solid #D4C8B5", borderRadius: 6, padding: "8px 10px", fontSize: 13, color: "#5C3D2E", fontStyle: "italic", minHeight: 60 }}>What did they observe about this person in this area?</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {/* Overall rating options */}
+        <div style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 12, padding: 20, marginBottom: 20 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 12 }}>18. Overall rating options</div>
+          {formDef.overallOptions.map((opt, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              {formEditMode ? (
+                <>
+                  <input value={opt} onChange={e => updateOverallOption(i, e.target.value)}
+                    style={{ flex: 1, padding: "6px 10px", border: "0.5px solid var(--color-border-secondary)", borderRadius: 6, fontSize: 13, fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-primary)", background: "var(--color-background-secondary)" }} />
+                  <button onClick={() => deleteOverallOption(i)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#A32D2D" }}>×</button>
+                </>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--color-text-primary)" }}>
+                  <div style={{ width: 14, height: 14, border: "1.5px solid var(--color-border-secondary)", borderRadius: 3, flexShrink: 0 }} />
+                  {opt}
+                </div>
+              )}
+            </div>
+          ))}
+          {formEditMode && (
+            <Btn variant="secondary" onClick={addOverallOption} style={{ fontSize: 12, padding: "5px 12px", marginTop: 8 }}>+ Add option</Btn>
+          )}
+        </div>
+
+        {formEditMode && (
+          <Btn variant="secondary" onClick={addFormSection} style={{ width: "100%", textAlign: "center", padding: 14, fontSize: 13 }}>+ Add section</Btn>
+        )}
+      </div>
+    );
+  };
+
+  // ── View: Dashboard ──────────────────────────────────────────────────────────
+  const renderDashboard = () => {
+    const upcoming = allUpcoming.slice(0, 6);
+    const recent = [...reviews].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+    const overdueCount = allUpcoming.filter((s) => daysUntil(s.date) < 0).length;
+    const soonCount = allUpcoming.filter((s) => {
+      const d = daysUntil(s.date);
+      return d >= 0 && d <= 30;
+    }).length;
+    return (
+      <div>
+        <h1 style={styles.pageTitle}>Overview</h1>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
+          {[
+            { label: "Team members", val: employees.length },
+            { label: "Total reviews", val: reviews.length },
+            { label: "Upcoming (30 days)", val: soonCount, color: soonCount > 0 ? "#D4793A" : undefined },
+            { label: "Overdue", val: overdueCount, color: overdueCount > 0 ? "#A32D2D" : undefined },
+          ].map((s) => (
+            <div
+              key={s.label}
+              style={{
+                background: "var(--color-background-secondary)",
+                borderRadius: 10,
+                padding: 20,
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: 38,
+                  fontWeight: 700,
+                  color: s.color || "var(--color-text-primary)",
+                }}
+              >
+                {s.val}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <Card>
+            <CardHeader
+              title="Upcoming reviews"
+              action={
+                <button
+                  onClick={() => navTo("schedule")}
+                  style={{ background: "none", border: "none", color: "#D4793A", cursor: "pointer", fontSize: 13, fontFamily: "'DM Sans', sans-serif" }}
+                >
+                  See all →
+                </button>
+              }
+            />
+            {upcoming.length === 0 ? (
+              <EmptyMsg>No reviews scheduled.</EmptyMsg>
+            ) : (
+              upcoming.map((s) => {
+                const emp = employees.find((e) => e.id === s.employeeId);
+                if (!emp) return null;
+                return (
+                  <ListRow key={s.id} onClick={() => navTo("employee", emp)}>
+                    <Avatar name={emp.name} size={34} />
+                    <div style={{ flex: 1 }}>
+                      <div style={styles.rowName}>{emp.name}</div>
+                      <div style={styles.rowMeta}>{s.type} · {fmtDate(s.date)}</div>
+                    </div>
+                    <UrgencyBadge days={daysUntil(s.date)} />
+                  </ListRow>
+                );
+              })
+            )}
+          </Card>
+          <Card>
+            <CardHeader title="Recent reviews" />
+            {recent.length === 0 ? (
+              <EmptyMsg>No reviews completed yet.</EmptyMsg>
+            ) : (
+              recent.map((r) => {
+                const emp = employees.find((e) => e.id === r.employeeId);
+                if (!emp) return null;
+                const avg = avgRatings(r);
+                return (
+                  <ListRow key={r.id} onClick={() => navTo("reviewDetail", emp, r)}>
+                    <Avatar name={emp.name} size={34} />
+                    <div style={{ flex: 1 }}>
+                      <div style={styles.rowName}>{emp.name}</div>
+                      <div style={styles.rowMeta}>{r.type} · {fmtDate(r.date)}</div>
+                    </div>
+                    {avg && (
+                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 22, fontWeight: 700, color: "#D4793A" }}>
+                        {avg}
+                      </span>
+                    )}
+                  </ListRow>
+                );
+              })
+            )}
+          </Card>
+        </div>
+      </div>
+    );
+  };
+
+  // ── View: Staff ──────────────────────────────────────────────────────────────
+  const renderStaff = () => {
+    const active = employees.filter((e) => e.status !== "terminated");
+    const archived = employees.filter((e) => e.status === "terminated");
+    const display = showArchived ? archived : active;
+
+    const EmpCard = ({ emp }) => {
+      const rl = empRevs(emp.id);
+      const ns = empSched(emp.id)[0];
+      const openGoals = rl.flatMap((r) => (r.goals || []).filter((g) => g.status === "open")).length;
+      const isTerminated = emp.status === "terminated";
+      return (
+        <div
+          key={emp.id}
+          onClick={() => navTo("employee", emp)}
+          style={{
+            background: "var(--color-background-primary)",
+            border: `0.5px solid ${isTerminated ? "#F09595" : "var(--color-border-tertiary)"}`,
+            borderRadius: 12,
+            padding: 20,
+            cursor: "pointer",
+            opacity: isTerminated ? 0.8 : 1,
+            transition: "border-color .15s",
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.borderColor = isTerminated ? "#E24B4A" : "#D4793A")}
+          onMouseOut={(e) => (e.currentTarget.style.borderColor = isTerminated ? "#F09595" : "var(--color-border-tertiary)")}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+            <Avatar name={emp.name} size={48} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 500, color: "var(--color-text-primary)" }}>{emp.name}</div>
+              <div style={{ fontSize: 13, color: "var(--color-text-secondary)", marginTop: 2 }}>{emp.role || "—"}</div>
+            </div>
+            {isTerminated && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#A32D2D", background: "#FCEBEB", borderRadius: 4, padding: "3px 8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Archived
+              </span>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 16, marginBottom: ns && !isTerminated ? 12 : 0 }}>
+            <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>📋 {rl.length} review{rl.length !== 1 ? "s" : ""}</span>
+            <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>🎯 {openGoals} open goal{openGoals !== 1 ? "s" : ""}</span>
+          </div>
+          {isTerminated && emp.terminatedDate && (
+            <div style={{ fontSize: 12, color: "#A32D2D", borderTop: "0.5px solid #F09595", paddingTop: 10, marginTop: 4 }}>
+              {emp.terminationType} · {fmtDate(emp.terminatedDate)}
+            </div>
+          )}
+          {!isTerminated && ns && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "0.5px solid var(--color-border-tertiary)", paddingTop: 12 }}>
+              <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>Next review</span>
+              <UrgencyBadge days={daysUntil(ns.date)} />
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 16 }}>
+            <h1 style={{ ...styles.pageTitle, margin: 0 }}>Staff</h1>
+            {archived.length > 0 && (
+              <button
+                onClick={() => setShowArchived((p) => !p)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: showArchived ? "#D4793A" : "var(--color-text-secondary)", fontFamily: "'DM Sans', sans-serif", padding: 0 }}
+              >
+                {showArchived ? `← Active staff (${active.length})` : `${archived.length} archived`}
+              </button>
+            )}
+          </div>
+          {!showArchived && <Btn onClick={() => setModal("addEmp")}>+ Add staff member</Btn>}
+        </div>
+
+        {display.length === 0 ? (
+          <Card style={{ textAlign: "center", padding: 48 }}>
+            <p style={{ color: "var(--color-text-secondary)", marginBottom: 16, fontStyle: "italic" }}>
+              {showArchived ? "No archived employees." : "No staff members yet."}
+            </p>
+            {!showArchived && <Btn onClick={() => setModal("addEmp")}>Add first staff member</Btn>}
+          </Card>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
+            {display.map((emp) => <EmpCard key={emp.id} emp={emp} />)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ── View: Schedule ───────────────────────────────────────────────────────────
+  const renderSchedule = () => {
+    const completed = scheduled.filter((s) => s.completed).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
+    return (
+      <div>
+        <h1 style={styles.pageTitle}>Review schedule</h1>
+        <Card>
+          <CardHeader title="Upcoming" />
+          {allUpcoming.length === 0 ? (
+            <EmptyMsg>No reviews scheduled. Visit a staff member's profile to add one.</EmptyMsg>
+          ) : (
+            allUpcoming.map((s) => {
+              const emp = employees.find((e) => e.id === s.employeeId);
+              if (!emp) return null;
+              return (
+                <ListRow key={s.id}>
+                  <Avatar name={emp.name} size={34} />
+                  <div style={{ flex: 1 }}>
+                    <div style={styles.rowName}>{emp.name}</div>
+                    <div style={styles.rowMeta}>
+                      {s.type} · {fmtDate(s.date)}
+                      {s.notes ? ` · ${s.notes}` : ""}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <UrgencyBadge days={daysUntil(s.date)} />
+                    <Btn variant="secondary" onClick={() => navTo("employee", emp)} style={{ fontSize: 12, padding: "5px 10px" }}>
+                      Open →
+                    </Btn>
+                    <Btn
+                      variant="secondary"
+                      style={{ fontSize: 12, padding: "5px 10px", color: "#3B6D11", borderColor: "#97C459" }}
+                      onClick={() =>
+                        setScheduled((p) =>
+                          p.map((x) => (x.id === s.id ? { ...x, completed: true } : x))
+                        )
+                      }
+                    >
+                      ✓ Done
+                    </Btn>
+                    <Btn
+                      variant="danger"
+                      style={{ fontSize: 12, padding: "5px 10px" }}
+                      onClick={() => {
+                        if (confirm("Remove this scheduled review?"))
+                          setScheduled((p) => p.filter((x) => x.id !== s.id));
+                      }}
+                    >
+                      ×
+                    </Btn>
+                  </div>
+                </ListRow>
+              );
+            })
+          )}
+        </Card>
+        {completed.length > 0 && (
+          <Card>
+            <CardHeader title="Completed" />
+            {completed.map((s) => {
+              const emp = employees.find((e) => e.id === s.employeeId);
+              if (!emp) return null;
+              return (
+                <ListRow key={s.id} muted>
+                  <Avatar name={emp.name} size={34} />
+                  <div style={{ flex: 1 }}>
+                    <div style={styles.rowName}>{emp.name}</div>
+                    <div style={styles.rowMeta}>{s.type} · {fmtDate(s.date)} · Completed</div>
+                  </div>
+                </ListRow>
+              );
+            })}
+          </Card>
+        )}
+      </div>
+    );
+  };
+
+  // ── View: Employee ───────────────────────────────────────────────────────────
+  const renderEmployee = () => {
+    if (!selEmp) return null;
+    const emp = employees.find((e) => e.id === selEmp.id) || selEmp; // always fresh
+    const isTerminated = emp.status === "terminated";
+    const rl = empRevs(emp.id);
+    const ns = empSched(emp.id)[0];
+    const openGoals = rl.flatMap((r) =>
+      (r.goals || []).filter((g) => g.status === "open").map((g) => ({ ...g, revDate: r.date, revId: r.id }))
+    );
+    return (
+      <div>
+        <button
+          onClick={() => navTo("staff")}
+          style={{ background: "none", border: "none", color: "var(--color-text-secondary)", cursor: "pointer", fontSize: 14, marginBottom: 20, fontFamily: "'DM Sans', sans-serif", padding: 0 }}
+        >
+          ← Back to staff
+        </button>
+
+        {/* Terminated banner */}
+        {isTerminated && (
+          <div style={{ display: "flex", alignItems: "center", gap: 16, background: "#FCEBEB", border: "0.5px solid #F09595", borderRadius: 8, padding: "12px 20px", marginBottom: 20, flexWrap: "wrap" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#A32D2D", marginBottom: 2 }}>
+                Archived — {emp.terminationType}
+              </div>
+              <div style={{ fontSize: 12, color: "#993535" }}>
+                {fmtDate(emp.terminatedDate)}{emp.terminationNotes ? ` · ${emp.terminationNotes}` : ""}
+              </div>
+            </div>
+            <Btn variant="secondary" style={{ fontSize: 12, padding: "5px 12px", color: "#3B6D11", borderColor: "#97C459" }}
+              onClick={() => { handleReactivate(emp.id); setSelEmp({ ...emp, status: "active" }); }}>
+              Reactivate
+            </Btn>
+          </div>
+        )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 24, flexWrap: "wrap" }}>
+          <Avatar name={emp.name} size={64} />
+          <div>
+            <h1 style={{ ...styles.pageTitle, margin: "0 0 4px" }}>{emp.name}</h1>
+            <div style={{ color: "var(--color-text-secondary)", fontSize: 15 }}>{emp.role || "—"}</div>
+            {emp.startDate && (
+              <div style={{ color: "var(--color-text-secondary)", fontSize: 13, marginTop: 2 }}>
+                Since {fmtDate(emp.startDate)}
+              </div>
+            )}
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {!isTerminated && (<>
+              <Btn variant="secondary" onClick={() => setModal("schedRev")}>Schedule review</Btn>
+              <Btn variant="secondary" onClick={() => setModal("newInc")} style={{ color: "#854F0B", borderColor: "#FAC775" }}>🔒 Add counseling record</Btn>
+              <Btn onClick={() => setModal("newRev")}>+ Add review</Btn>
+              <Btn variant="danger" onClick={() => setModal("terminate")} style={{ fontSize: 13 }}>Terminate</Btn>
+            </>)}
+          </div>
+        </div>
+        {ns && (
+          <div
+            style={{
+              background: "var(--color-background-primary)",
+              border: "0.5px solid var(--color-border-tertiary)",
+              borderLeft: "3px solid #D4793A",
+              borderRadius: "0 8px 8px 0",
+              padding: "12px 20px",
+              display: "flex",
+              gap: 14,
+              alignItems: "center",
+              marginBottom: 20,
+              flexWrap: "wrap",
+              fontSize: 14,
+              color: "var(--color-text-primary)",
+            }}
+          >
+            <span style={{ color: "var(--color-text-secondary)" }}>Next scheduled review:</span>
+            <strong>{fmtDate(ns.date)}</strong>
+            <span style={{ color: "var(--color-text-secondary)" }}>({ns.type})</span>
+            <UrgencyBadge days={daysUntil(ns.date)} />
+          </div>
+        )}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <Card>
+            <CardHeader title="Open goals" />
+            {openGoals.length === 0 ? (
+              <EmptyMsg>No open goals. Goals set in reviews appear here.</EmptyMsg>
+            ) : (
+              openGoals.map((g) => (
+                <div
+                  key={g.id}
+                  style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "11px 20px", borderBottom: "0.5px solid var(--color-border-tertiary)" }}
+                >
+                  <button
+                    title="Mark complete"
+                    onClick={() =>
+                      setReviews((p) =>
+                        p.map((r) =>
+                          r.id === g.revId
+                            ? { ...r, goals: r.goals.map((gl) => (gl.id === g.id ? { ...gl, status: "complete", completedAt: todayStr() } : gl)) }
+                            : r
+                        )
+                      )
+                    }
+                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--color-border-secondary)", padding: 0, marginTop: 1 }}
+                    onMouseOver={(e) => (e.target.style.color = "#5e8a64")}
+                    onMouseOut={(e) => (e.target.style.color = "var(--color-border-secondary)")}
+                  >
+                    ○
+                  </button>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, color: "var(--color-text-primary)" }}>{g.text}</div>
+                    <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 2 }}>
+                      Set {fmtDate(g.revDate)}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </Card>
+          <Card>
+            <CardHeader title="Review history" />
+            {rl.length === 0 ? (
+              <EmptyMsg>No reviews yet. Click "Add review" to record the first one.</EmptyMsg>
+            ) : (
+              rl.map((r) => {
+                const avg = avgRatings(r);
+                const cg = (r.goals || []).filter((g) => g.status === "complete").length;
+                const tg = (r.goals || []).length;
+                return (
+                  <ListRow key={r.id} onClick={() => navTo("reviewDetail", emp, r)}>
+                    <div style={{ flex: 1 }}>
+                      <div style={styles.rowName}>{r.type} · {fmtDate(r.date)}</div>
+                      <div style={styles.rowMeta}>
+                        {tg > 0 ? `${cg}/${tg} goals · ` : ""}
+                        {(r.overallNotes || r.notes) ? (r.overallNotes || r.notes).slice(0, 55) + ((r.overallNotes || r.notes).length > 55 ? "…" : "") : "No notes"}
+                      </div>
+                    </div>
+                    {avg && (
+                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 22, fontWeight: 700, color: "#D4793A" }}>
+                        {avg}
+                      </span>
+                    )}
+                  </ListRow>
+                );
+              })
+            )}
+          </Card>
+        </div>
+        {/* Counseling records */}
+        {(() => {
+          const il = empIncs(emp.id);
+          if (il.length === 0) return null;
+          return (
+            <Card style={{ marginTop: 16 }}>
+              <CardHeader
+                title="🔒 Counseling records"
+                action={<span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>{il.length} record{il.length !== 1 ? "s" : ""} — confidential</span>}
+              />
+              {il.map((inc) => {
+                const sev = INC_SEVERITY.find((s) => s.key === inc.severity);
+                const openAI = (inc.actionItems || []).filter((a) => a.status === "open").length;
+                return (
+                  <ListRow key={inc.id} onClick={() => navTo("incidentDetail", emp, null, inc)}>
+                    <div style={{ flex: 1 }}>
+                      <div style={styles.rowName}>{inc.category} · {fmtDate(inc.date)}</div>
+                      <div style={styles.rowMeta}>
+                        {inc.reporter}{openAI > 0 ? ` · ${openAI} open action${openAI > 1 ? "s" : ""}` : ""}
+                        {inc.followUpDate ? ` · Follow-up ${fmtDate(inc.followUpDate)}` : ""}
+                      </div>
+                    </div>
+                    {sev && (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: sev.color, background: sev.bg, borderRadius: 4, padding: "3px 9px", whiteSpace: "nowrap" }}>
+                        {sev.label}
+                      </span>
+                    )}
+                  </ListRow>
+                );
+              })}
+            </Card>
+          );
+        })()}
+      </div>
+    );
+  };
+
+  // ── View: Review detail ──────────────────────────────────────────────────────
+  const renderReviewDetail = () => {
+    if (!selRev) return null;
+    const r = selRev;
+    const emp = employees.find((e) => e.id === r.employeeId);
+    const avg = avgRatings(r);
+
+    const GoalItem = ({ g, revId }) => (
+      <div key={g.id} style={{ display: "flex", gap: 12, padding: "10px 20px", borderBottom: "0.5px solid var(--color-border-tertiary)", alignItems: "flex-start" }}>
+        <span style={{ fontSize: 16, color: g.status === "complete" ? "#5e8a64" : g.status === "carried" ? "var(--color-text-secondary)" : "var(--color-border-secondary)", marginTop: 1 }}>
+          {g.status === "complete" ? "✓" : g.status === "carried" ? "↗" : "○"}
+        </span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, textDecoration: g.status !== "open" ? "line-through" : "none", color: g.status === "open" ? "var(--color-text-primary)" : "var(--color-text-secondary)" }}>
+            {g.text}
+          </div>
+          {g.completedAt && <div style={{ fontSize: 11, color: "#5e8a64", marginTop: 2 }}>Completed {fmtDate(g.completedAt)}</div>}
+          {g.status === "carried" && <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 2 }}>Carried to next review</div>}
+        </div>
+      </div>
+    );
+
+    return (
+      <div style={{ maxWidth: 860 }}>
+        <button onClick={() => navTo("employee", emp || selEmp)} style={{ background: "none", border: "none", color: "var(--color-text-secondary)", cursor: "pointer", fontSize: 14, marginBottom: 20, fontFamily: "'DM Sans', sans-serif", padding: 0 }}>
+          ← Back
+        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
+          {emp && <Avatar name={emp.name} size={52} />}
+          <div>
+            <h1 style={{ ...styles.pageTitle, margin: "0 0 4px" }}>{r.type} review</h1>
+            <div style={{ color: "var(--color-text-secondary)" }}>{emp?.name} · {fmtDate(r.date)}</div>
+          </div>
+          {avg && (
+            <div style={{ marginLeft: "auto", fontFamily: "'DM Sans', sans-serif", fontSize: 44, fontWeight: 700, color: "#D4793A" }}>
+              {avg}<span style={{ fontSize: 14, fontWeight: 400, color: "var(--color-text-secondary)" }}> /5</span>
+            </div>
+          )}
+        </div>
+
+        {/* Form-driven format (new reviews) */}
+        {r.responses && (() => {
+          const fd = r.formSnapshot || formDef;
+          return fd.sections.map(sec => {
+            const secPeers = (r.peerInputs || {})[sec.id] || [];
+            const answered = sec.questions.filter(q => r.responses[q.id] !== undefined && r.responses[q.id] !== "" && r.responses[q.id] !== 0);
+            if (!answered.length && !secPeers.length) return null;
+            const ratingQs = sec.questions.filter(q => q.type === "rating" && r.responses[q.id] > 0);
+            const secAvg = ratingQs.length ? (ratingQs.reduce((a,q)=>a+r.responses[q.id],0)/ratingQs.length).toFixed(1) : null;
+            return (
+              <div key={sec.id} style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderLeft: `3px solid ${sec.color}`, borderRadius: "0 12px 12px 0", marginBottom: 16, overflow: "hidden" }}>
+                <div style={{ padding: "12px 20px", background: sec.bg + "44", borderBottom: "0.5px solid var(--color-border-tertiary)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: sec.color }}>{sec.title}</span>
+                  {secAvg && <span style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: sec.color, borderRadius: 5, padding: "3px 11px" }}>{secAvg} avg</span>}
+                </div>
+                <div style={{ padding: "16px 20px 4px" }}>
+                  {sec.questions.map(q => {
+                    const val = r.responses[q.id];
+                    if (val === undefined || val === "" || val === 0) return null;
+                    return q.type === "rating" ? (
+                      <QuestionRating key={q.id} q={q} value={val} readOnly />
+                    ) : (
+                      <div key={q.id} style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 4 }}>{q.num}. {q.text}</div>
+                        <p style={{ fontSize: 14, lineHeight: 1.7, color: "var(--color-text-primary)", margin: 0, whiteSpace: "pre-wrap" }}>{val}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                {secPeers.length > 0 && (
+                  <div style={{ padding: "12px 20px", background: "var(--color-background-secondary)", borderTop: "0.5px solid var(--color-border-tertiary)" }}>
+                    <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", color: sec.color, fontWeight: 600, marginBottom: 8 }}>Peer input</div>
+                    {secPeers.map(pi => (
+                      <div key={pi.id} style={{ background: "var(--color-background-primary)", border: `0.5px solid ${sec.color}33`, borderLeft: `3px solid ${sec.color}`, borderRadius: "0 8px 8px 0", padding: "9px 12px", marginBottom: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: sec.color, marginBottom: 3 }}>{pi.source}</div>
+                        <p style={{ fontSize: 13, color: "var(--color-text-primary)", margin: 0, lineHeight: 1.5 }}>{pi.note}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          });
+        })()}
+
+        {/* Legacy section+prompts format */}
+        {!r.responses && r.sections && Object.entries(r.sections).map(([key, sd]) => {
+          if (!sd) return null;
+          const hasContent = sd.rating || (sd.checks || []).length || sd.notes;
+          if (!hasContent) return null;
+          return (
+            <div key={key} style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderLeft: "3px solid #888", borderRadius: "0 12px 12px 0", marginBottom: 16, overflow: "hidden" }}>
+              <div style={{ padding: "11px 20px", background: "var(--color-background-secondary)", borderBottom: "0.5px solid var(--color-border-tertiary)", display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text-primary)", textTransform: "capitalize" }}>{key.replace(/_/g, " ")}</span>
+                {sd.rating > 0 && <span style={{ fontSize: 12, fontWeight: 600 }}>{sd.rating}/5</span>}
+              </div>
+              <div style={{ padding: "12px 20px" }}>
+                {(sd.checks || []).map(c => <div key={c} style={{ fontSize: 13, marginBottom: 4 }}>✓ {c}</div>)}
+                {sd.notes && <p style={{ fontSize: 14, lineHeight: 1.7, margin: "8px 0 0" }}>{sd.notes}</p>}
+              </div>
+            </div>
+          );
+        })}
+
+
+        {/* Overall notes */}
+        {(r.overallNotes || r.notes) && (
+          <Card style={{ marginBottom: 16 }}>
+            <CardHeader title="Overall notes" />
+            <p style={{ fontSize: 14, lineHeight: 1.7, color: "var(--color-text-primary)", padding: "0 20px 20px", whiteSpace: "pre-wrap" }}>
+              {r.overallNotes || r.notes}
+            </p>
+          </Card>
+        )}
+
+        {/* Goals */}
+        <Card>
+          <CardHeader title="Goals" />
+          {(r.goals || []).length === 0 ? (
+            <EmptyMsg>No goals were set in this review.</EmptyMsg>
+          ) : (
+            (r.goals || []).map((g) => <GoalItem key={g.id} g={g} revId={r.id} />)
+          )}
+        </Card>
+      </div>
+    );
+  };
+
+  // ── View: Review detail ──────────────────────────────────────────────────────
+  const renderCounselingLog = () => {
+    const sorted = [...incidents].sort((a, b) => b.date.localeCompare(a.date));
+    const openFollowUps = incidents.filter((i) => i.followUpDate && daysUntil(i.followUpDate) <= 14 && daysUntil(i.followUpDate) >= 0);
+    return (
+      <div>
+        <h1 style={styles.pageTitle}>Counseling log</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#FAEEDA", border: "0.5px solid #FAC775", borderRadius: 8, padding: "9px 14px", marginBottom: 20 }}>
+          <span style={{ fontSize: 15 }}>🔒</span>
+          <span style={{ fontSize: 12, color: "#633806", fontWeight: 500 }}>Confidential — authorized reporters only.</span>
+        </div>
+        {openFollowUps.length > 0 && (
+          <Card style={{ marginBottom: 20, borderLeft: "3px solid #D4793A", borderRadius: "0 12px 12px 0" }}>
+            <CardHeader title="Follow-ups due soon" />
+            {openFollowUps.map((i) => {
+              const emp = employees.find((e) => e.id === i.employeeId);
+              if (!emp) return null;
+              return (
+                <ListRow key={i.id} onClick={() => navTo("incidentDetail", emp, null, i)}>
+                  <Avatar name={emp.name} size={34} />
+                  <div style={{ flex: 1 }}>
+                    <div style={styles.rowName}>{emp.name} — {i.category}</div>
+                    <div style={styles.rowMeta}>Follow-up {fmtDate(i.followUpDate)} · {i.reporter}</div>
+                  </div>
+                  <UrgencyBadge days={daysUntil(i.followUpDate)} />
+                </ListRow>
+              );
+            })}
+          </Card>
+        )}
+        <Card>
+          <CardHeader title="All records" action={
+            <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>{sorted.length} record{sorted.length !== 1 ? "s" : ""}</span>
+          } />
+          {sorted.length === 0 ? (
+            <EmptyMsg>No counseling records. Open a staff member's profile to add one.</EmptyMsg>
+          ) : (
+            sorted.map((i) => {
+              const emp = employees.find((e) => e.id === i.employeeId);
+              if (!emp) return null;
+              const sev = INC_SEVERITY.find((s) => s.key === i.severity);
+              const openItems = (i.actionItems || []).filter((a) => a.status === "open").length;
+              return (
+                <ListRow key={i.id} onClick={() => navTo("incidentDetail", emp, null, i)}>
+                  <Avatar name={emp.name} size={34} />
+                  <div style={{ flex: 1 }}>
+                    <div style={styles.rowName}>{emp.name} — {i.category}</div>
+                    <div style={styles.rowMeta}>{fmtDate(i.date)} · {i.reporter}{openItems > 0 ? ` · ${openItems} open action${openItems > 1 ? "s" : ""}` : ""}</div>
+                  </div>
+                  {sev && (
+                    <span style={{ fontSize: 11, fontWeight: 600, color: sev.color, background: sev.bg, borderRadius: 4, padding: "3px 9px", whiteSpace: "nowrap" }}>
+                      {sev.label}
+                    </span>
+                  )}
+                </ListRow>
+              );
+            })
+          )}
+        </Card>
+      </div>
+    );
+  };
+
+  // ── View: Incident detail ─────────────────────────────────────────────────────
+  const renderIncidentDetail = () => {
+    if (!selInc) return null;
+    const i = selInc;
+    const emp = employees.find((e) => e.id === i.employeeId) || selEmp;
+    const sev = INC_SEVERITY.find((s) => s.key === i.severity);
+    const openItems = (i.actionItems || []).filter((a) => a.status === "open").length;
+    return (
+      <div>
+        <button
+          onClick={() => navTo(selEmp ? "employee" : "counseling", selEmp)}
+          style={{ background: "none", border: "none", color: "var(--color-text-secondary)", cursor: "pointer", fontSize: 14, marginBottom: 20, fontFamily: "'DM Sans', sans-serif", padding: 0 }}
+        >
+          ← Back
+        </button>
+
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 20, marginBottom: 24, flexWrap: "wrap" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 16 }}>🔒</span>
+              <h1 style={{ ...styles.pageTitle, margin: 0 }}>{i.category}</h1>
+              {sev && (
+                <span style={{ fontSize: 12, fontWeight: 600, color: sev.color, background: sev.bg, borderRadius: 4, padding: "4px 10px" }}>
+                  {sev.label}
+                </span>
+              )}
+            </div>
+            <div style={{ color: "var(--color-text-secondary)", fontSize: 14 }}>
+              {emp?.name} · {fmtDate(i.date)} · Documented by {i.reporter}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Btn variant="secondary" onClick={() => setModal("editInc")}>Edit record</Btn>
+            <Btn variant="danger" onClick={() => {
+              if (confirm("Permanently delete this record?")) {
+                setIncidents((p) => p.filter((x) => x.id !== i.id));
+                navTo(selEmp ? "employee" : "counseling", selEmp);
+              }
+            }}>Delete</Btn>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          {/* Left */}
+          <div>
+            <Card>
+              <CardHeader title="Incident description" />
+              <p style={{ fontSize: 14, lineHeight: 1.8, color: "var(--color-text-primary)", padding: "0 20px 20px", whiteSpace: "pre-wrap" }}>
+                {i.description}
+              </p>
+            </Card>
+            {i.priorDiscussions && (
+              <Card>
+                <CardHeader title="Prior discussions" />
+                <p style={{ fontSize: 14, lineHeight: 1.8, color: "var(--color-text-primary)", padding: "0 20px 20px", whiteSpace: "pre-wrap" }}>
+                  {i.priorDetail || "Previously discussed (no detail recorded)."}
+                </p>
+              </Card>
+            )}
+            {i.employeeResponse && (
+              <Card>
+                <CardHeader title="Employee response" />
+                <p style={{ fontSize: 14, lineHeight: 1.8, color: "var(--color-text-primary)", padding: "0 20px 20px", whiteSpace: "pre-wrap" }}>
+                  {i.employeeResponse}
+                </p>
+                {i.employeeAcknowledged && (
+                  <div style={{ padding: "0 20px 16px", fontSize: 12, color: "#3B6D11" }}>
+                    ✓ Employee was informed of this documentation
+                  </div>
+                )}
+              </Card>
+            )}
+          </div>
+
+          {/* Right */}
+          <div>
+            <Card>
+              <CardHeader title={`Action items${openItems > 0 ? ` (${openItems} open)` : ""}`} />
+              {(i.actionItems || []).length === 0 ? (
+                <EmptyMsg>No action items were specified.</EmptyMsg>
+              ) : (
+                (i.actionItems || []).map((a) => (
+                  <div key={a.id} style={{ display: "flex", gap: 12, padding: "10px 20px", borderBottom: "0.5px solid var(--color-border-tertiary)", alignItems: "flex-start" }}>
+                    <button
+                      onClick={() => {
+                        const updated = { ...i, actionItems: i.actionItems.map((x) => x.id === a.id ? { ...x, status: x.status === "open" ? "complete" : "open", completedAt: x.status === "open" ? todayStr() : undefined } : x) };
+                        setIncidents((p) => p.map((x) => x.id === i.id ? updated : x));
+                        setSelInc(updated);
+                      }}
+                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: a.status === "complete" ? "#5e8a64" : "var(--color-border-secondary)", padding: 0, marginTop: 2 }}
+                    >
+                      {a.status === "complete" ? "✓" : "○"}
+                    </button>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, textDecoration: a.status === "complete" ? "line-through" : "none", color: a.status === "complete" ? "var(--color-text-secondary)" : "var(--color-text-primary)" }}>
+                        {a.text}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 2 }}>
+                        {a.dueDate ? `Due ${fmtDate(a.dueDate)}` : "No due date"}
+                        {a.completedAt ? ` · Completed ${fmtDate(a.completedAt)}` : ""}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </Card>
+
+            {/* Meta card */}
+            <Card>
+              <CardHeader title="Record details" />
+              <div style={{ padding: "0 20px" }}>
+                {[
+                  ["Employee", emp?.name || "—"],
+                  ["Date", fmtDate(i.date)],
+                  ["Category", i.category],
+                  ["Level", sev?.label || "—"],
+                  ["Reported by", i.reporter],
+                  ["Follow-up date", i.followUpDate ? fmtDate(i.followUpDate) : "—"],
+                  ["Prior discussions", i.priorDiscussions ? "Yes" : "No"],
+                  ["Employee informed", i.employeeAcknowledged ? "Yes" : "No"],
+                  ["Created", fmtDate(i.createdAt)],
+                  ...(i.updatedAt && i.updatedAt !== i.createdAt ? [["Last edited", fmtDate(i.updatedAt)]] : []),
+                ].map(([label, val]) => (
+                  <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "0.5px solid var(--color-border-tertiary)", fontSize: 13 }}>
+                    <span style={{ color: "var(--color-text-secondary)" }}>{label}</span>
+                    <span style={{ color: "var(--color-text-primary)", fontWeight: 500 }}>{val}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── View: Settings ───────────────────────────────────────────────────────────
+  const renderSettings = () => {
+    return (
+      <div style={{ maxWidth: 560 }}>
+        <h1 style={styles.pageTitle}>Settings</h1>
+
+        <Card>
+          <CardHeader title="Team sharing" />
+          <div style={{ padding: "16px 20px 20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#5e8a64", flexShrink: 0 }} />
+              <span style={{ fontSize: 13, color: "#3B6D11", fontWeight: 500 }}>Shared storage active</span>
+            </div>
+            <p style={{ fontSize: 14, color: "var(--color-text-secondary)", lineHeight: 1.7, margin: "0 0 14px" }}>
+              All data in this app is stored in shared mode — anyone you give access to this artifact sees the same employees, reviews, and records in real time.
+            </p>
+            <p style={{ fontSize: 14, color: "var(--color-text-secondary)", lineHeight: 1.7, margin: "0 0 14px" }}>
+              To share with your team, add them to your Claude Project and share the artifact link. Jenna, Eric, and Max will open it and see the same data you do — no setup required on their end.
+            </p>
+            <div style={{ background: "var(--color-background-secondary)", borderRadius: 8, padding: "12px 16px", fontSize: 13, color: "var(--color-text-secondary)", lineHeight: 1.6 }}>
+              <strong style={{ color: "var(--color-text-primary)" }}>Note on Google Sheets:</strong> Direct Sheets integration from within a Claude artifact is blocked by the sandbox. For exports and reports, use the data export below, which you can paste into a sheet manually or send to Jenna.
+            </div>
+          </div>
+        </Card>
+
+        <Card style={{ marginTop: 16 }}>
+          <CardHeader title="Data storage" action={
+            <button
+              onClick={() => {
+                const snapshot = {
+                  exportedAt: new Date().toISOString(),
+                  employees, reviews, scheduled, incidents,
+                };
+                const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = `ted-reviews-export-${todayStr()}.json`; a.click();
+                URL.revokeObjectURL(url);
+              }}
+              style={{ background: "none", border: "none", color: "#D4793A", cursor: "pointer", fontSize: 13, fontFamily: "'DM Sans', sans-serif" }}
+            >
+              Export JSON ↓
+            </button>
+          } />
+          <div style={{ padding: "0 20px 4px" }}>
+            {[
+              ["Employees", employees.filter(e => e.status !== "terminated").length + " active, " + employees.filter(e => e.status === "terminated").length + " archived"],
+              ["Reviews", reviews.length],
+              ["Scheduled reviews", scheduled.filter(s => !s.completed).length + " upcoming"],
+              ["Counseling records", incidents.length],
+            ].map(([label, count]) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: "0.5px solid var(--color-border-tertiary)", fontSize: 14 }}>
+                <span style={{ color: "var(--color-text-secondary)" }}>{label}</span>
+                <span style={{ fontWeight: 500, color: "var(--color-text-primary)" }}>{count}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'DM Sans', sans-serif", color: "var(--color-text-secondary)" }}>
+        Loading…
+      </div>
+    );
+  }
+
+  const sidebarNavActive = (v) => {
+    if (["employee", "reviewDetail"].includes(view)) return v === "staff";
+    if (view === "incidentDetail" && selEmp) return v === "staff";
+    if (view === "incidentDetail" && !selEmp) return v === "counseling";
+    return view === v;
+  };
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", background: "#FAF8F5", fontFamily: "'DM Sans', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&family=DM+Mono:wght@400;500&display=swap');
+      `}</style>
+
+      {/* Sidebar */}
+      <nav
+        style={{
+          width: 190,
+          background: "#1B2838",
+          padding: 0,
+          display: "flex",
+          flexDirection: "column",
+          flexShrink: 0,
+          position: "fixed",
+          top: 0,
+          left: 0,
+          height: "100vh",
+          zIndex: 10,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: 18,
+            fontWeight: 500,
+            color: "#FAF8F5",
+            padding: "22px 20px",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            lineHeight: 1.2,
+            letterSpacing: "-0.01em",
+          }}
+        >
+          TED
+          <span
+            style={{
+              display: "block",
+              fontFamily: "'DM Mono', monospace",
+              fontSize: 9,
+              color: "rgba(232,223,208,0.5)",
+              fontWeight: 400,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              marginTop: 4,
+            }}
+          >
+            Staff Reviews
+          </span>
+        </div>
+        <div
+          style={{
+            padding: "18px 20px 6px",
+            fontFamily: "'DM Mono', monospace",
+            fontSize: 9,
+            color: "rgba(232,223,208,0.3)",
+            textTransform: "uppercase",
+            letterSpacing: "0.12em",
+          }}
+        >
+          Menu
+        </div>
+        {[
+          { id: "dashboard", label: "Dashboard" },
+          { id: "staff", label: "Staff" },
+          { id: "schedule", label: "Schedule" },
+          { id: "formDesign", label: "Review form" },
+        ].map((n) => (
+          <button
+            key={n.id}
+            onClick={() => navTo(n.id)}
+            style={{
+              display: "block",
+              padding: "10px 20px",
+              color: sidebarNavActive(n.id) ? "#FAF8F5" : "rgba(232,223,208,0.65)",
+              cursor: "pointer",
+              fontSize: 13.5,
+              border: "none",
+              background: sidebarNavActive(n.id) ? "rgba(255,255,255,0.05)" : "none",
+              textAlign: "left",
+              width: "100%",
+              borderLeft: `3px solid ${sidebarNavActive(n.id) ? "#D4793A" : "transparent"}`,
+              fontFamily: "'DM Sans', sans-serif",
+              fontWeight: sidebarNavActive(n.id) ? 500 : 400,
+              transition: "all .15s",
+            }}
+          >
+            {n.label}
+          </button>
+        ))}
+        <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "10px 0" }} />
+        <div style={{ padding: "10px 20px 6px", fontFamily: "'DM Mono', monospace", fontSize: 9, color: "rgba(232,223,208,0.3)", textTransform: "uppercase", letterSpacing: "0.12em" }}>
+          Confidential
+        </div>
+        <button
+          onClick={() => navTo("counseling")}
+          style={{
+            display: "block", padding: "10px 20px",
+            color: sidebarNavActive("counseling") ? "#FAF8F5" : "rgba(232,223,208,0.65)",
+            cursor: "pointer", fontSize: 13.5, border: "none",
+            background: sidebarNavActive("counseling") ? "rgba(255,255,255,0.05)" : "none",
+            textAlign: "left", width: "100%",
+            borderLeft: `3px solid ${sidebarNavActive("counseling") ? "#D4793A" : "transparent"}`,
+            fontFamily: "'DM Sans', sans-serif",
+            fontWeight: sidebarNavActive("counseling") ? 500 : 400,
+            transition: "all .15s",
+          }}
+        >
+          🔒 Counseling log
+        </button>
+        <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "10px 0" }} />
+        <button
+          onClick={() => navTo("settings")}
+          style={{
+            display: "block", padding: "10px 20px",
+            color: sidebarNavActive("settings") ? "#FAF8F5" : "rgba(232,223,208,0.45)",
+            cursor: "pointer", fontSize: 13, border: "none",
+            background: sidebarNavActive("settings") ? "rgba(255,255,255,0.05)" : "none",
+            textAlign: "left", width: "100%",
+            borderLeft: `3px solid ${sidebarNavActive("settings") ? "#D4793A" : "transparent"}`,
+            fontFamily: "'DM Sans', sans-serif",
+            fontWeight: sidebarNavActive("settings") ? 500 : 400,
+            transition: "all .15s",
+          }}
+        >
+          ⚙ Settings
+        </button>
+      </nav>
+
+      {/* Main content */}
+      <main style={{ marginLeft: 190, padding: "36px 40px", flex: 1, minHeight: "100vh" }}>
+        {modal === "addEmp" ? (
+          <AddEmployeeModal onClose={() => setModal(null)} onSave={handleSaveEmployee} />
+        ) : modal === "schedRev" && selEmp ? (
+          <ScheduleModal emp={selEmp} onClose={() => setModal(null)} onSave={handleSaveSchedule} />
+        ) : modal === "newRev" && selEmp ? (
+          <ReviewModal emp={selEmp} prevReviews={empRevs(selEmp.id)} onClose={() => setModal(null)} onSave={handleSaveReview} formDef={formDef} employees={employees} />
+        ) : modal === "newInc" && selEmp ? (
+          <CounselingModal emp={selEmp} onClose={() => setModal(null)} onSave={handleSaveIncident} />
+        ) : modal === "editInc" && selEmp && selInc ? (
+          <CounselingModal emp={selEmp} existing={selInc} onClose={() => setModal(null)} onSave={handleSaveIncident} />
+        ) : modal === "terminate" && selEmp ? (
+          <TerminateModal emp={selEmp} onClose={() => setModal(null)} onSave={handleTerminate} />
+        ) : (
+          <>
+            {view === "dashboard" && renderDashboard()}
+            {view === "staff" && renderStaff()}
+            {view === "schedule" && renderSchedule()}
+            {view === "formDesign" && renderFormDesign()}
+            {view === "employee" && renderEmployee()}
+            {view === "reviewDetail" && renderReviewDetail()}
+            {view === "counseling" && renderCounselingLog()}
+            {view === "incidentDetail" && renderIncidentDetail()}
+            {view === "settings" && renderSettings()}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+const styles = {
+  pageTitle: {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 26,
+    fontWeight: 500,
+    color: "#1B2838",
+    marginBottom: 24,
+    letterSpacing: "-0.01em",
+  },
+  eyebrow: {
+    fontFamily: "'DM Mono', monospace",
+    fontSize: 10,
+    textTransform: "uppercase",
+    letterSpacing: "0.12em",
+    color: "var(--color-text-secondary)",
+  },
+  rowName: {
+    fontSize: 14,
+    fontWeight: 500,
+    color: "var(--color-text-primary)",
+    fontFamily: "'DM Sans', sans-serif",
+  },
+  rowMeta: {
+    fontSize: 12,
+    color: "var(--color-text-secondary)",
+    marginTop: 2,
+    fontFamily: "'DM Sans', sans-serif",
+  },
+};
+
+
+    // Mount the app
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(<App />);
+  </script>
+
+</body>
+</html>
